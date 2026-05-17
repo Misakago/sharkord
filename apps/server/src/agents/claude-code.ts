@@ -362,6 +362,8 @@ const splitFilesMarker = (message: string) => {
 
 const BRACKETED_PASTE_START = '\x1b[200~';
 const BRACKETED_PASTE_END = '\x1b[201~';
+const CLEAR_CURRENT_TTY_INPUT = '\x1b\x15\x15';
+const SUBMIT_CURRENT_TTY_INPUT = '\r';
 
 const normalizePtyInputLineEndings = (value: string) =>
   value.replace(/\r\n?/g, '\n');
@@ -373,18 +375,17 @@ const normalizeClaudePromptLine = (value: string) =>
     .filter(Boolean)
     .join(' ');
 
-const toPtySubmitPayload = (
+const toPtyPastePayload = (
   rawText: string,
   options: { bracketedPaste: boolean }
 ) => {
   const text = normalizePtyInputLineEndings(rawText);
-  const isMultiline = text.includes('\n');
 
-  if (isMultiline && options.bracketedPaste) {
-    return `${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}\r`;
+  if (options.bracketedPaste) {
+    return `${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`;
   }
 
-  return `${text}\r`;
+  return text;
 };
 
 const createNodePtyHelper = (
@@ -935,11 +936,17 @@ class ClaudeCodeAgentManager {
       ? records.find((record) => record.id === chatSessionId)
       : undefined;
     const record: TClaudeCodeChatSessionRecord = existing
-      ? (({ readyAt: _readyAt, ...rest }) => ({
-          ...rest,
-          claudeSessionId: randomUUID(),
-          updatedAt: now
-        }))(existing)
+      ? (() => {
+          const { readyAt, ...rest } = existing;
+
+          void readyAt;
+
+          return {
+            ...rest,
+            claudeSessionId: randomUUID(),
+            updatedAt: now
+          };
+        })()
       : {
           id: randomUUID(),
           claudeSessionId: randomUUID(),
@@ -1066,10 +1073,7 @@ class ClaudeCodeAgentManager {
     }
   };
 
-  private waitForClaudeSessionBinding = async (
-    session: TClaudeCodeSession,
-    _claudeSessionId: string
-  ) => {
+  private waitForClaudeSessionBinding = async (session: TClaudeCodeSession) => {
     const deadline = Date.now() + 12_000;
 
     while (Date.now() < deadline) {
@@ -1296,6 +1300,11 @@ class ClaudeCodeAgentManager {
     const hadRunningPty = Boolean(session.pty);
     const chatSession = this.buildChatSessionRecord();
 
+    await this.cancelPendingAskUserQuestions(
+      session,
+      'ClaudeCode switched to a new chat session before the question was answered.'
+    );
+
     if (session.pty) {
       session.stopping = true;
       session.pty.kill();
@@ -1312,11 +1321,13 @@ class ClaudeCodeAgentManager {
 
     try {
       await this.ensureSession(userId);
-      await this.waitForClaudeSessionBinding(session, chatSession.claudeSessionId);
+      await this.waitForClaudeSessionBinding(session);
     } catch (error) {
-      if (session.pty) {
+      const failedPty = session.pty as TPty | undefined;
+
+      if (failedPty) {
         session.stopping = true;
-        session.pty.kill();
+        failedPty.kill();
         session.pty = undefined;
       }
 
@@ -1409,6 +1420,11 @@ class ClaudeCodeAgentManager {
       restore: true
     });
     await this.setCurrentChatSession(session, chatSession, !rebound);
+
+    await this.cancelPendingAskUserQuestions(
+      session,
+      'ClaudeCode switched chat sessions before the question was answered.'
+    );
 
     if (session.pty) {
       session.stopping = true;
@@ -1716,6 +1732,13 @@ class ClaudeCodeAgentManager {
 
     const session = this.sessions.get(userId);
 
+    if (session) {
+      await this.cancelPendingAskUserQuestions(
+        session,
+        'ClaudeCode conversation was cleared before the question was answered.'
+      );
+    }
+
     if (session?.pty) {
       session.stopping = true;
       session.pty.kill();
@@ -1811,16 +1834,22 @@ class ClaudeCodeAgentManager {
       .join(' | ');
   };
 
-  private writePrompt = (session: TClaudeCodeSession, prompt: string) => {
+  private writePrompt = async (session: TClaudeCodeSession, prompt: string) => {
     if (!session.pty) {
       throw new Error('Claude Code PTY is not running');
     }
 
+    session.pty.write(CLEAR_CURRENT_TTY_INPUT);
+    await sleep(30);
     session.pty.write(
-      `\x15${toPtySubmitPayload(prompt, {
-        bracketedPaste: false
-      })}`
+      toPtyPastePayload(prompt, {
+        bracketedPaste: session.bracketedPasteMode === true
+      })
     );
+    await sleep(60);
+    session.pty.write(SUBMIT_CURRENT_TTY_INPUT);
+    await sleep(80);
+    session.pty.write(SUBMIT_CURRENT_TTY_INPUT);
   };
 
   public handleCreatedMessage = async (messageId: number) => {
@@ -1834,6 +1863,8 @@ class ClaudeCodeAgentManager {
     if (!(await this.isClaudeCodeDm(message.channelId, message.userId))) return;
 
     const session = await this.ensureSession(message.userId);
+    if (session.status.state === 'waiting_for_user') return;
+
     const hasRunningMessage = session.status.state === 'running' && session.messageId;
     const runId = hasRunningMessage ? session.runId! : randomUUIDv7();
 
@@ -1855,7 +1886,7 @@ class ClaudeCodeAgentManager {
     };
     this.publishStatus(session);
 
-    this.writePrompt(session, await this.buildPrompt(message));
+    await this.writePrompt(session, await this.buildPrompt(message));
   };
 
   private completeAskUserQuestionRequest = async (
@@ -2010,6 +2041,20 @@ class ClaudeCodeAgentManager {
 
     if (!session) {
       throw new Error('ClaudeCode 会话不存在');
+    }
+
+    const pending = session.askUserQuestionRequests.get(requestId);
+
+    if (!pending) {
+      throw new Error('ClaudeCode 问题已失效或已被回答');
+    }
+
+    const missingQuestion = pending.questions.find(
+      (question) => !(question.question in answers)
+    );
+
+    if (missingQuestion) {
+      throw new Error(`ClaudeCode 问题缺少回答: ${missingQuestion.header}`);
     }
 
     const answered = await this.completeAskUserQuestionRequest(
@@ -2227,25 +2272,22 @@ class ClaudeCodeAgentManager {
   };
 
   public handleHookFailure = async (token: string, message: string) => {
-    const session = Array.from(this.sessions.values()).find(
-      (item) => item.hookToken === token
-    );
+    const session = this.getSessionByHookToken(token);
 
     if (!session?.channelId || !session.messageId) return false;
 
     const runId = session.runId ?? randomUUIDv7();
+    await this.cancelPendingAskUserQuestions(
+      session,
+      'ClaudeCode hook failed before the question was answered.'
+    );
+    const metadata = await this.getMessageMetadata(session.messageId);
 
     await db
       .update(messages)
       .set({
         content: toMessageHtml(message),
-        metadata: [
-          {
-            kind: 'claude_code_task',
-            runId,
-            status: 'failed'
-          }
-        ],
+        metadata: this.withClaudeCodeTaskMetadata(metadata, runId, 'failed'),
         updatedAt: Date.now()
       })
       .where(eq(messages.id, session.messageId));
@@ -2342,6 +2384,7 @@ const createClaudeCodePtyWebSocketServer = () => {
 export {
   CLAUDE_CODE_AGENT_IDENTITY,
   CLAUDE_CODE_AGENT_NAME,
+  CLAUDE_CODE_ASK_USER_QUESTION_HOOK_PATH,
   CLAUDE_CODE_PTY_PATH,
   CLAUDE_CODE_STOP_HOOK_PATH,
   claudeCodeAgentManager,

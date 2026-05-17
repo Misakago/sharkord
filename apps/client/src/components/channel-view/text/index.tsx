@@ -86,6 +86,17 @@ const TextChannel = memo(
     } = useMessages(channelId);
     const messageJumpTarget = useMessageJumpTarget();
     const isJumpingToChannel = messageJumpTarget?.channelId === channelId;
+    const hasPendingClaudeCodeQuestion = useMemo(
+      () =>
+        messages.some((message) =>
+          (message.metadata ?? []).some(
+            (metadata) =>
+              metadata?.kind === 'claude_code_ask_user_question' &&
+              metadata.status === 'pending'
+          )
+        ),
+      [messages]
+    );
 
     useScrollToJumpTarget(channelId, scrollToMessage);
 
@@ -333,6 +344,8 @@ const TextChannel = memo(
           replyTarget={replyTarget}
           onArrowUp={handleArrowUpEdit}
           onResize={onComposeResize}
+          disabled={hasPendingClaudeCodeQuestion}
+          disabledPlaceholder="请先回答上方问题"
         />
       </>
     );

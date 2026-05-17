@@ -79,6 +79,8 @@ type TMessageComposeProps = {
   onCancelReply?: () => void;
   onArrowUp?: () => void;
   onResize?: () => void;
+  disabled?: boolean;
+  disabledPlaceholder?: string;
   isThread?: boolean;
   ref?: Ref<TMessageComposeHandle>;
 };
@@ -123,6 +125,8 @@ const MessageCompose = memo(
     onCancelReply,
     onArrowUp,
     onResize,
+    disabled = false,
+    disabledPlaceholder,
     isThread = false,
     ref
   }: TMessageComposeProps) => {
@@ -146,10 +150,11 @@ const MessageCompose = memo(
 
     const canSendMessages = useMemo(() => {
       return (
+        !disabled &&
         can(Permission.SEND_MESSAGES) &&
         channelCan(ChannelPermission.SEND_MESSAGES)
       );
-    }, [can, channelCan]);
+    }, [can, channelCan, disabled]);
 
     const canUploadFiles = useMemo(() => {
       const canShareFilesInDm =
@@ -158,17 +163,22 @@ const MessageCompose = memo(
       return (
         can(Permission.SEND_MESSAGES) &&
         can(Permission.UPLOAD_FILES) &&
+        !disabled &&
         channelCan(ChannelPermission.SEND_MESSAGES) &&
         canShareFilesInDm
       );
-    }, [can, channelCan, channel, publicSettings]);
+    }, [can, channelCan, channel, disabled, publicSettings]);
 
     const placeholder = useMemo(() => {
+      if (disabled && disabledPlaceholder) {
+        return disabledPlaceholder;
+      }
+
       if (channel && !isThread && !channel.isDm) {
         return t('messageChannel', { name: channel.name });
       }
       return t('typeAMessage');
-    }, [channel, isThread, t]);
+    }, [channel, disabled, disabledPlaceholder, isThread, t]);
 
     const pluginCommands = useMemo(
       () => (can(Permission.USE_PLUGINS) ? allPluginCommands : undefined),

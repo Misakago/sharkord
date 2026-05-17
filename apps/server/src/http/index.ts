@@ -21,6 +21,7 @@ import { publicRouteHandler } from './public';
 import { uploadFileRouteHandler } from './upload';
 import { HttpValidationError } from './utils';
 import {
+  claudeCodeAskUserQuestionHookRouteHandler,
   claudeCodeMessageLookupRouteHandler,
   claudeCodeStopHookRouteHandler
 } from './claude-code-hook';
@@ -60,7 +61,9 @@ const routeHandlers: Partial<
       '/upload': (req, res) => uploadFileRouteHandler(req, res),
       '/login': (req, res) => loginRouteHandler(req, res),
       '/claude-code/hooks/stop': (req, res) =>
-        claudeCodeStopHookRouteHandler(req, res)
+        claudeCodeStopHookRouteHandler(req, res),
+      '/claude-code/hooks/ask-user-question': (req, res) =>
+        claudeCodeAskUserQuestionHookRouteHandler(req, res)
     },
     prefix: {}
   }

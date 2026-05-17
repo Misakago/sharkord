@@ -5,6 +5,7 @@ import { getFileUrl } from '@/helpers/get-file-url';
 import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import { cn } from '@/lib/utils';
 import {
+  type TClaudeCodeAskUserQuestionMetadata,
   type TClaudeCodeTaskMetadata,
   type TFile,
   type TJoinedMessage
@@ -14,6 +15,7 @@ import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageReactions } from '../message-reactions';
 import { TextFileTabs } from '../text-file-tabs';
+import { ClaudeCodeAskUserQuestion } from './claude-code-ask-user-question';
 import { getIsEmojiOnly, getParsedMessageHtml } from './content-cache';
 import { extractMessageOpenGraph } from './helpers';
 import { Media } from './media';
@@ -52,7 +54,17 @@ const MessageRenderer = memo(
         ),
       [message.metadata]
     );
-    const isClaudeCodeRunning = claudeCodeTask?.status === 'running';
+    const claudeCodeQuestions = useMemo(
+      () =>
+        (message.metadata ?? []).filter(
+          (metadata): metadata is TClaudeCodeAskUserQuestionMetadata =>
+            metadata?.kind === 'claude_code_ask_user_question'
+        ),
+      [message.metadata]
+    );
+    const isClaudeCodeActive =
+      claudeCodeTask?.status === 'running' ||
+      claudeCodeTask?.status === 'waiting_for_user';
     const hasMessageContent = useMemo(() => {
       const content = message.content ?? '';
 
@@ -113,14 +125,25 @@ const MessageRenderer = memo(
           </div>
         )}
 
-        {isClaudeCodeRunning && (
+        {claudeCodeQuestions.map((claudeCodeQuestion) => (
+          <ClaudeCodeAskUserQuestion
+            key={claudeCodeQuestion.requestId}
+            question={claudeCodeQuestion}
+          />
+        ))}
+
+        {isClaudeCodeActive && (
           <button
             type="button"
             className="flex w-fit items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-left text-sm text-emerald-100 hover:bg-emerald-500/15"
             onClick={openClaudeCodePanel}
           >
             <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            <span className="font-medium">正在处理...</span>
+            <span className="font-medium">
+              {claudeCodeTask?.status === 'waiting_for_user'
+                ? '等待回答...'
+                : '正在处理...'}
+            </span>
             <span className="text-emerald-200/70 underline">展开</span>
           </button>
         )}

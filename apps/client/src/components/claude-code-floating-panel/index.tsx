@@ -199,7 +199,10 @@ const ClaudeCodeFloatingPanel = memo(() => {
   useEffect(() => {
     const previousState = previousStatusStateRef.current;
 
-    if (previousState === 'running' && status.state === 'idle') {
+    if (
+      (previousState === 'running' || previousState === 'waiting_for_user') &&
+      status.state === 'idle'
+    ) {
       setShowHappyMascot(true);
 
       if (happyTimeoutRef.current) {
@@ -329,7 +332,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
     wsRef.current = null;
     closeClaudeCodeHistoryPanel();
 
-    if (status.state === 'running') {
+    if (status.state === 'running' || status.state === 'waiting_for_user') {
       closeClaudeCodePanel();
 
       return;
@@ -408,9 +411,11 @@ const ClaudeCodeFloatingPanel = memo(() => {
     }
   }, [open]);
 
+  const isClaudeCodeBusy =
+    status.state === 'running' || status.state === 'waiting_for_user';
   const mascotSrc = showHappyMascot
     ? '/claude-code/happy.svg'
-    : status.state === 'running'
+    : isClaudeCodeBusy
       ? '/claude-code/working.svg'
       : '/claude-code/standby.svg';
 
@@ -424,7 +429,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
         type="button"
         className={cn(
           'pointer-events-auto fixed z-50 flex items-center justify-center overflow-visible rounded-none transition-transform duration-200 hover:scale-105',
-          status.state === 'running' && 'drop-shadow-[0_0_12px_rgba(52,211,153,0.65)]'
+          isClaudeCodeBusy && 'drop-shadow-[0_0_12px_rgba(52,211,153,0.65)]'
         )}
         style={{
           left: panelRect.left + 18,

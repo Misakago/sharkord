@@ -60,6 +60,35 @@ const deleteClaudeCodeSessionRoute = protectedProcedure
     )
   );
 
+const claudeCodeQuestionAnswersSchema = z.record(
+  z.string(),
+  z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+);
+
+const answerClaudeCodeQuestionRoute = protectedProcedure
+  .input(
+    z.object({
+      requestId: z.string().uuid(),
+      answers: claudeCodeQuestionAnswersSchema
+    })
+  )
+  .mutation(async ({ ctx, input }) =>
+    claudeCodeAgentManager.answerAskUserQuestionForUser(
+      ctx.userId,
+      input.requestId,
+      input.answers
+    )
+  );
+
+const cancelClaudeCodeQuestionRoute = protectedProcedure
+  .input(z.object({ requestId: z.string().uuid() }))
+  .mutation(async ({ ctx, input }) =>
+    claudeCodeAgentManager.cancelAskUserQuestionForUser(
+      ctx.userId,
+      input.requestId
+    )
+  );
+
 const onClaudeCodeStatusRoute = protectedProcedure.subscription(
   async ({ ctx }) =>
     ctx.pubsub.subscribeFor(ctx.userId, ServerEvents.CLAUDE_CODE_STATUS)
@@ -74,6 +103,8 @@ const agentsRouter = t.router({
   startNewClaudeCodeSession: startNewClaudeCodeSessionRoute,
   resumeClaudeCodeSession: resumeClaudeCodeSessionRoute,
   deleteClaudeCodeSession: deleteClaudeCodeSessionRoute,
+  answerClaudeCodeQuestion: answerClaudeCodeQuestionRoute,
+  cancelClaudeCodeQuestion: cancelClaudeCodeQuestionRoute,
   onClaudeCodeStatus: onClaudeCodeStatusRoute
 });
 

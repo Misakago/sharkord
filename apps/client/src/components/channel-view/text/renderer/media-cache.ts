@@ -66,11 +66,13 @@ const buildMediaSignature = (message: TJoinedMessage) => {
     .join('|');
 
   const metadataSignature = (message.metadata ?? [])
-    .map((metadata) =>
-      metadata
-        ? `${metadata.kind ?? 'legacy'}:${metadata.mediaType}:${metadata.url}:${metadata.title ?? ''}`
+    .map((metadata) => {
+      const metadataEntry = metadata as TMessageMetadataLike | null | undefined;
+
+      return metadataEntry
+        ? `${metadataEntry.kind ?? 'legacy'}:${metadataEntry.mediaType ?? ''}:${metadataEntry.url ?? ''}:${metadataEntry.title ?? ''}`
         : 'null'
-    )
+    })
     .join('|');
 
   return `${message.id}::${fileSignature}::${metadataSignature}`;
