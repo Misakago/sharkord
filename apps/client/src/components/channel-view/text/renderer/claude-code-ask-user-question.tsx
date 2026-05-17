@@ -5,7 +5,14 @@ import type {
   TClaudeCodeAskUserQuestionAnswers,
   TClaudeCodeAskUserQuestionMetadata
 } from '@mikotord/shared';
-import { Button, Input } from '@mikotord/ui';
+import {
+  Button,
+  Input,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@mikotord/ui';
 import { Check, Circle, CircleCheck, Square, SquareCheck, X } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -52,7 +59,16 @@ const ClaudeCodeAskUserQuestion = memo(
     const [customEnabled, setCustomEnabled] = useState<Record<string, boolean>>({});
     const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
+    const [activePromptId, setActivePromptId] = useState(
+      question.questions[0]?.question ?? ''
+    );
     const isPending = question.status === 'pending';
+    const activePromptValue =
+      question.questions.find((prompt) => prompt.question === activePromptId)
+        ?.question ??
+      question.questions[0]?.question ??
+      '';
+    const hasMultipleQuestions = question.questions.length > 1;
 
     const toggleOption = useCallback(
       (prompt: TClaudeCodeAskUserQuestion, label: string) => {
@@ -114,6 +130,7 @@ const ClaudeCodeAskUserQuestion = memo(
         {}
       );
     }, [customAnswers, customEnabled, question.questions, selectedAnswers]);
+    const currentAnswers = isPending ? answers : question.answers;
 
     const canSubmit = useMemo(
       () =>
@@ -164,6 +181,111 @@ const ClaudeCodeAskUserQuestion = memo(
       }
     }, [question.requestId, submitting]);
 
+    const renderPrompt = (prompt: TClaudeCodeAskUserQuestion) => (
+      <div className="flex flex-col gap-2">
+        <div>
+          <div className="text-xs font-semibold uppercase text-sky-200/70">
+            {prompt.header}
+          </div>
+          <div className="mt-0.5 text-sky-50">{prompt.question}</div>
+        </div>
+
+        {isPending ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              {prompt.options.map((option) => {
+                const selected = (selectedAnswers[prompt.question] ?? []).includes(
+                  option.label
+                );
+                const Icon = prompt.multiSelect
+                  ? selected
+                    ? SquareCheck
+                    : Square
+                  : selected
+                    ? CircleCheck
+                    : Circle;
+
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    className={cn(
+                      'flex min-w-0 items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors',
+                      selected
+                        ? 'border-sky-300/70 bg-sky-300/15 text-white'
+                        : 'border-sky-300/20 bg-black/15 text-sky-50 hover:bg-sky-300/10'
+                    )}
+                    onClick={() => toggleOption(prompt, option.label)}
+                  >
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block break-words font-medium">
+                        {option.label}
+                      </span>
+                      {option.description && (
+                        <span className="mt-0.5 block break-words text-xs text-sky-100/65">
+                          {option.description}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={cn(
+                  'flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-xs transition-colors',
+                  customEnabled[prompt.question]
+                    ? 'border-sky-300/70 bg-sky-300/15'
+                    : 'border-sky-300/20 bg-black/15 hover:bg-sky-300/10'
+                )}
+                onClick={() => toggleCustom(prompt)}
+              >
+                {customEnabled[prompt.question] ? (
+                  prompt.multiSelect ? (
+                    <SquareCheck className="h-4 w-4" />
+                  ) : (
+                    <CircleCheck className="h-4 w-4" />
+                  )
+                ) : prompt.multiSelect ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Circle className="h-4 w-4" />
+                )}
+                其他
+              </button>
+              <Input
+                value={customAnswers[prompt.question] ?? ''}
+                disabled={!customEnabled[prompt.question]}
+                placeholder="输入自定义回答"
+                className="h-9 border-sky-300/20 bg-black/15 text-sky-50 placeholder:text-sky-100/40"
+                onChange={(event) =>
+                  setCustomAnswers((current) => ({
+                    ...current,
+                    [prompt.question]: event.target.value
+                  }))
+                }
+              />
+            </div>
+          </>
+        ) : (
+          <div
+            className={cn(
+              'rounded-md border px-3 py-2',
+              hasStoredAnswer(question.answers, prompt)
+                ? 'border-sky-300/20 bg-black/15 text-sky-50'
+                : 'border-muted/30 bg-muted/20 text-muted-foreground'
+            )}
+          >
+            {formatStoredAnswer(question.answers, prompt)}
+          </div>
+        )}
+      </div>
+    );
+
     return (
       <div className="mt-1 flex w-full max-w-xl flex-col gap-3 rounded-md border border-sky-400/25 bg-sky-500/10 p-3 text-sm text-sky-50">
         <div className="flex items-center justify-between gap-3">
@@ -180,108 +302,42 @@ const ClaudeCodeAskUserQuestion = memo(
           </span>
         </div>
 
-        {question.questions.map((prompt) => (
-          <div key={prompt.question} className="flex flex-col gap-2">
-            <div>
-              <div className="text-xs font-semibold uppercase text-sky-200/70">
-                {prompt.header}
-              </div>
-              <div className="mt-0.5 text-sky-50">{prompt.question}</div>
-            </div>
+        {hasMultipleQuestions ? (
+          <Tabs
+            value={activePromptValue}
+            onValueChange={setActivePromptId}
+            className="gap-3"
+          >
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-md border border-sky-300/15 bg-black/15 p-1">
+              {question.questions.map((prompt, index) => (
+                <TabsTrigger
+                  key={prompt.question}
+                  value={prompt.question}
+                  className="min-w-0 flex-none rounded-sm px-2 text-xs text-sky-100 data-[state=active]:bg-sky-300/20 data-[state=active]:text-white"
+                >
+                  <span className="max-w-32 truncate">
+                    {prompt.header || `问题 ${index + 1}`}
+                  </span>
+                  {hasStoredAnswer(currentAnswers, prompt) && (
+                    <Check className="h-3 w-3" />
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-            {isPending ? (
-              <>
-                <div className="grid gap-2">
-                  {prompt.options.map((option) => {
-                    const selected = (
-                      selectedAnswers[prompt.question] ?? []
-                    ).includes(option.label);
-                    const Icon = prompt.multiSelect
-                      ? selected
-                        ? SquareCheck
-                        : Square
-                      : selected
-                        ? CircleCheck
-                        : Circle;
-
-                    return (
-                      <button
-                        key={option.label}
-                        type="button"
-                        className={cn(
-                          'flex items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors',
-                          selected
-                            ? 'border-sky-300/70 bg-sky-300/15 text-white'
-                            : 'border-sky-300/20 bg-black/15 text-sky-50 hover:bg-sky-300/10'
-                        )}
-                        onClick={() => toggleOption(prompt, option.label)}
-                      >
-                        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span className="min-w-0">
-                          <span className="block font-medium">{option.label}</span>
-                          {option.description && (
-                            <span className="mt-0.5 block text-xs text-sky-100/65">
-                              {option.description}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className={cn(
-                      'flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-xs transition-colors',
-                      customEnabled[prompt.question]
-                        ? 'border-sky-300/70 bg-sky-300/15'
-                        : 'border-sky-300/20 bg-black/15 hover:bg-sky-300/10'
-                    )}
-                    onClick={() => toggleCustom(prompt)}
-                  >
-                    {customEnabled[prompt.question] ? (
-                      prompt.multiSelect ? (
-                        <SquareCheck className="h-4 w-4" />
-                      ) : (
-                        <CircleCheck className="h-4 w-4" />
-                      )
-                    ) : prompt.multiSelect ? (
-                      <Square className="h-4 w-4" />
-                    ) : (
-                      <Circle className="h-4 w-4" />
-                    )}
-                    其他
-                  </button>
-                  <Input
-                    value={customAnswers[prompt.question] ?? ''}
-                    disabled={!customEnabled[prompt.question]}
-                    placeholder="输入自定义回答"
-                    className="h-9 border-sky-300/20 bg-black/15 text-sky-50 placeholder:text-sky-100/40"
-                    onChange={(event) =>
-                      setCustomAnswers((current) => ({
-                        ...current,
-                        [prompt.question]: event.target.value
-                      }))
-                    }
-                  />
-                </div>
-              </>
-            ) : (
-              <div
-                className={cn(
-                  'rounded-md border px-3 py-2',
-                  hasStoredAnswer(question.answers, prompt)
-                    ? 'border-sky-300/20 bg-black/15 text-sky-50'
-                    : 'border-muted/30 bg-muted/20 text-muted-foreground'
-                )}
+            {question.questions.map((prompt) => (
+              <TabsContent
+                key={prompt.question}
+                value={prompt.question}
+                className="mt-0"
               >
-                {formatStoredAnswer(question.answers, prompt)}
-              </div>
-            )}
-          </div>
-        ))}
+                {renderPrompt(prompt)}
+              </TabsContent>
+            ))}
+          </Tabs>
+        ) : (
+          question.questions[0] && renderPrompt(question.questions[0])
+        )}
 
         {isPending && (
           <div className="flex justify-end gap-2">
