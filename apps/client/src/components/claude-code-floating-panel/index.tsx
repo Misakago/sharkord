@@ -20,6 +20,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { Trash2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
 type TPtyMessage =
@@ -43,13 +44,11 @@ const getWsUrl = () => {
   return `${protocol}://${host}/claude-code/pty?token=${encodeURIComponent(token)}`;
 };
 
-const DEFAULT_PANEL_RECT = {
-  top: 48,
-  left: 0,
-  height: Math.max(320, window.innerHeight - 224),
-  width: Math.max(160, Math.min(520, (window.innerHeight - 224) / 2))
-};
 const MASCOT_SIZE = 78;
+const DEFAULT_MASCOT_RECT = {
+  left: 24,
+  bottom: 16
+};
 
 const ClaudeCodeFloatingPanel = memo(() => {
   const open = useClaudeCodePanelOpen();
@@ -67,7 +66,8 @@ const ClaudeCodeFloatingPanel = memo(() => {
   });
   const [historyItems, setHistoryItems] = useState<TClaudeCodeHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [panelRect, setPanelRect] = useState(DEFAULT_PANEL_RECT);
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
+  const [mascotRect, setMascotRect] = useState(DEFAULT_MASCOT_RECT);
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -80,6 +80,34 @@ const ClaudeCodeFloatingPanel = memo(() => {
     dmsOpen &&
     selectedDmChannelId !== undefined &&
     selectedDmChannelId === claudeCodeDmChannelId;
+  const resolvePanelHost = useCallback(
+    () => {
+      if (historyOpen) {
+        return document.querySelector<HTMLElement>(
+          '[data-claude-code-history-panel-host="true"]'
+        );
+      }
+
+      return document.querySelector<HTMLElement>(
+        [
+          '[data-claude-code-active-panel-host="true"]',
+          '[data-claude-code-virtual-panel-host="true"]'
+        ].join(',')
+      );
+    },
+    [historyOpen]
+  );
+  const scrollToPanelHost = useCallback(() => {
+    const host = resolvePanelHost();
+
+    if (!host) return;
+
+    setPanelHost(host);
+    host.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest'
+    });
+  }, [resolvePanelHost]);
 
   const sendResize = useCallback(() => {
     const terminal = terminalRef.current;
@@ -124,7 +152,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
   }, []);
 
   useEffect(() => {
-    if (!isClaudeCodeConversation || !open) return;
+    if (!isClaudeCodeConversation || !open || !panelHost) return;
 
     const container = terminalContainerRef.current;
 
@@ -188,7 +216,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [isClaudeCodeConversation, open, sendResize]);
+  }, [isClaudeCodeConversation, open, panelHost, sendResize]);
 
   useEffect(() => {
     if (!open) return;
@@ -203,6 +231,9 @@ const ClaudeCodeFloatingPanel = memo(() => {
       (previousState === 'running' || previousState === 'waiting_for_user') &&
       status.state === 'idle'
     ) {
+      closeClaudeCodeHistoryPanel();
+      closeClaudeCodePanel();
+      setPanelHost(null);
       setShowHappyMascot(true);
 
       if (happyTimeoutRef.current) {
@@ -224,43 +255,62 @@ const ClaudeCodeFloatingPanel = memo(() => {
   }, [status.state]);
 
   useEffect(() => {
-    if (!isClaudeCodeConversation) return;
+    if (!isClaudeCodeConversation) {
+      setPanelHost(null);
+      return;
+    }
 
-    const updatePanelRect = () => {
-      const selector = `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`;
-      const messagesContainer = document.querySelector<HTMLElement>(selector);
-      const bounds = messagesContainer?.getBoundingClientRect();
-
-      if (!bounds) {
-        setPanelRect(DEFAULT_PANEL_RECT);
-        return;
-      }
-
-      const height = Math.max(320, bounds.height);
-      const maxWidth = Math.max(160, window.innerWidth - bounds.left);
-      const width = Math.min(maxWidth, Math.max(160, height / 2));
-
-      setPanelRect({
-        top: bounds.top,
-        left: bounds.left,
-        height,
-        width
-      });
-    };
-    const resizeObserver = new ResizeObserver(updatePanelRect);
+    const updatePanelHost = () => setPanelHost(resolvePanelHost());
     const messagesContainer = document.querySelector<HTMLElement>(
       `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`
     );
+    const observer = new MutationObserver(updatePanelHost);
 
-    updatePanelRect();
-    window.addEventListener('resize', updatePanelRect);
+    updatePanelHost();
+    observer.observe(messagesContainer ?? document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return () => observer.disconnect();
+  }, [isClaudeCodeConversation, resolvePanelHost, selectedDmChannelId]);
+
+  useEffect(() => {
+    if (!isClaudeCodeConversation) {
+      setMascotRect(DEFAULT_MASCOT_RECT);
+      return;
+    }
+
+    const updateMascotRect = () => {
+      const messagesContainer = document.querySelector<HTMLElement>(
+        `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`
+      );
+      const bounds = messagesContainer?.getBoundingClientRect();
+
+      if (!bounds) {
+        setMascotRect(DEFAULT_MASCOT_RECT);
+        return;
+      }
+
+      setMascotRect({
+        left: Math.max(8, bounds.left + 4),
+        bottom: Math.max(0, window.innerHeight - bounds.bottom - 2)
+      });
+    };
+    const messagesContainer = document.querySelector<HTMLElement>(
+      `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`
+    );
+    const resizeObserver = new ResizeObserver(updateMascotRect);
+
+    updateMascotRect();
+    window.addEventListener('resize', updateMascotRect);
 
     if (messagesContainer) {
       resizeObserver.observe(messagesContainer);
     }
 
     return () => {
-      window.removeEventListener('resize', updatePanelRect);
+      window.removeEventListener('resize', updateMascotRect);
       resizeObserver.disconnect();
     };
   }, [isClaudeCodeConversation, selectedDmChannelId]);
@@ -404,12 +454,17 @@ const ClaudeCodeFloatingPanel = memo(() => {
   const togglePanelFromMascot = useCallback(() => {
     closeClaudeCodeHistoryPanel();
 
-    if (open) {
+    if (open || historyOpen) {
       closeClaudeCodePanel();
+      setPanelHost(null);
+      return;
     } else {
       openClaudeCodePanel();
     }
-  }, [open]);
+
+    window.setTimeout(scrollToPanelHost, 0);
+    window.setTimeout(scrollToPanelHost, 120);
+  }, [historyOpen, open, scrollToPanelHost]);
 
   const isClaudeCodeBusy =
     status.state === 'running' || status.state === 'waiting_for_user';
@@ -432,12 +487,12 @@ const ClaudeCodeFloatingPanel = memo(() => {
           isClaudeCodeBusy && 'drop-shadow-[0_0_12px_rgba(52,211,153,0.65)]'
         )}
         style={{
-          left: panelRect.left + 18,
-          top: panelRect.top + panelRect.height - MASCOT_SIZE + 7,
+          left: mascotRect.left,
+          bottom: mascotRect.bottom,
           width: MASCOT_SIZE,
           height: MASCOT_SIZE
         }}
-        title={open ? '收起 ClaudeCode 终端' : '展开 ClaudeCode 终端'}
+        title={open ? '定位并关闭 ClaudeCode 终端' : '定位并展开 ClaudeCode 终端'}
         onClick={togglePanelFromMascot}
       >
         <img
@@ -448,38 +503,28 @@ const ClaudeCodeFloatingPanel = memo(() => {
         />
       </button>
 
-      {(open || historyOpen) && (
-        <div
-          className="pointer-events-none fixed right-0 z-50"
-          style={{
-            top: panelRect.top,
-            height: panelRect.height,
-            width: panelRect.width
-          }}
-        >
-      <div
-        className={cn(
-          'absolute inset-y-0 right-0 origin-right transition-all duration-300 ease-out',
-          open || historyOpen
-            ? 'translate-x-0 opacity-100'
-            : '-translate-x-8 opacity-0 pointer-events-none'
-        )}
-        style={{ width: panelRect.width }}
-      >
-        <section
-          className={cn(
-            'h-full w-full overflow-hidden rounded-none border-y border-l border-border/80 bg-black/88 shadow-2xl backdrop-blur-md',
-            historyOpen ? 'pointer-events-auto' : 'pointer-events-none'
-          )}
-        >
+      {panelHost &&
+        (open || historyOpen) &&
+        createPortal(
+          <div
+            className={cn(
+              'aspect-[2/1] w-[min(720px,calc(100vw-8rem))] max-w-full origin-top transition-all duration-300 ease-out',
+              open || historyOpen
+                ? 'scale-100 opacity-100'
+                : 'scale-95 opacity-0 pointer-events-none'
+            )}
+          >
+            <section
+              className={cn(
+                'h-full w-full overflow-hidden rounded-md border border-border/90 bg-black/88 shadow-2xl ring-1 ring-white/10 backdrop-blur-md',
+                historyOpen ? 'pointer-events-auto' : 'pointer-events-none'
+              )}
+            >
           {historyOpen ? (
             <div className="flex h-full flex-col bg-card/95 text-foreground">
               <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
                 <div className="min-w-0">
                   <div className="font-bold">历史会话</div>
-                  <div className="text-xs text-muted-foreground">
-                    以聊天室会话为准
-                  </div>
                 </div>
                 <button
                   type="button"
@@ -562,10 +607,10 @@ const ClaudeCodeFloatingPanel = memo(() => {
               onMouseDown={() => terminalRef.current?.focus()}
             />
           )}
-        </section>
-      </div>
-        </div>
-      )}
+            </section>
+          </div>,
+          panelHost
+        )}
     </>
   );
 });

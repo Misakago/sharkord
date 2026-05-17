@@ -34,6 +34,7 @@ type TMessageProps = {
   onEditMessageSelect?: (message: TJoinedMessage) => void;
   isInlineReplyTarget?: boolean;
   isActiveThread?: boolean;
+  showClaudeCodePanelHost?: boolean;
 };
 
 const Message = memo(
@@ -46,7 +47,8 @@ const Message = memo(
     onReplyMessageSelect,
     onEditMessageSelect,
     isInlineReplyTarget,
-    isActiveThread
+    isActiveThread,
+    showClaudeCodePanelHost
   }: TMessageProps) => {
     const { t } = useTranslation('common');
     const [actionsVisible, setActionsVisible] = useState(false);
@@ -185,6 +187,7 @@ const Message = memo(
           onRenameFile={
             message.editable && canManage ? renameMessageFile : undefined
           }
+          showClaudeCodePanelHost={showClaudeCodePanelHost}
         />
         {!isThreadReply && replyCount > 0 && (
           <button

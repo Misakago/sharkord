@@ -30,7 +30,7 @@ const sanitizeMessageHtml = (html: string): string => {
       span: ['data-type', 'data-name', 'data-user-id', 'class'],
       img: ['src', 'alt', 'draggable', 'loading', 'align', 'class'],
       code: ['class'],
-      pre: ['class'],
+      pre: ['class', 'data-claude-code-markdown'],
       br: ['class'],
       '*': []
     },

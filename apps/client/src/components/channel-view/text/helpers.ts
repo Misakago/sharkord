@@ -15,6 +15,7 @@ type TMessagesGroupComparatorProps = {
   onEditMessageSelect?: (message: TJoinedMessage) => void;
   replyTargetMessageId?: number;
   activeThreadMessageId?: number;
+  claudeCodePanelMessageId?: number;
 };
 
 const groupContainsMessageId = (
@@ -56,8 +57,14 @@ const areGroupsEqual = (
     prevProps.replyTargetMessageId === nextProps.replyTargetMessageId;
   const activeThreadUnchanged =
     prevProps.activeThreadMessageId === nextProps.activeThreadMessageId;
+  const claudeCodePanelUnchanged =
+    prevProps.claudeCodePanelMessageId === nextProps.claudeCodePanelMessageId;
 
-  if (replyTargetUnchanged && activeThreadUnchanged) {
+  if (
+    replyTargetUnchanged &&
+    activeThreadUnchanged &&
+    claudeCodePanelUnchanged
+  ) {
     return true;
   }
 
@@ -72,7 +79,19 @@ const areGroupsEqual = (
       ) ||
       groupContainsMessageId(nextProps.group, nextProps.activeThreadMessageId)
     : false;
-  return !isReplyTargetChangeRelevant && !isActiveThreadChangeRelevant;
+  const isClaudeCodePanelChangeRelevant = !claudeCodePanelUnchanged
+    ? groupContainsMessageId(
+        prevProps.group,
+        prevProps.claudeCodePanelMessageId
+      ) ||
+      groupContainsMessageId(nextProps.group, nextProps.claudeCodePanelMessageId)
+    : false;
+
+  return (
+    !isReplyTargetChangeRelevant &&
+    !isActiveThreadChangeRelevant &&
+    !isClaudeCodePanelChangeRelevant
+  );
 };
 
 // calculate the minimum acceptable chat input height

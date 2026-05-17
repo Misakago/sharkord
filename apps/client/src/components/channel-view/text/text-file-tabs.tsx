@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import {
   memo,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -47,6 +48,10 @@ type TTextFileTabsProps = {
   context?: 'message' | 'compose';
   activeFileId?: number;
   onLayoutChange?: () => void;
+  contentTab?: {
+    label: string;
+    content: ReactNode;
+  };
 };
 
 type TAttachmentFile = {
@@ -71,6 +76,12 @@ type TPreviewState =
 type TAttachmentKind = 'text' | 'image' | 'other';
 
 type TAttachmentTab =
+  | {
+      id: string;
+      kind: 'content';
+      label: string;
+      content: ReactNode;
+    }
   | {
       id: string;
       kind: 'text' | 'image';
@@ -108,7 +119,9 @@ const getAttachmentKind = (file: TAttachmentFile): TAttachmentKind => {
 };
 
 const getTabFile = (tab: TAttachmentTab | undefined) =>
-  tab?.kind === 'other' || tab?.kind === 'imageGallery'
+  tab?.kind === 'other' ||
+  tab?.kind === 'imageGallery' ||
+  tab?.kind === 'content'
     ? null
     : (tab?.file ?? null);
 
@@ -159,7 +172,8 @@ const TextFileTabs = memo(
     disableInlinePreview,
     context = 'message',
     activeFileId,
-    onLayoutChange
+    onLayoutChange,
+    contentTab
   }: TTextFileTabsProps) => {
     const { t } = useTranslation('common');
     const initialGalleryTabIndex = (() => {
@@ -181,10 +195,10 @@ const TextFileTabs = memo(
       return hasImageFile ? textFileCount : null;
     })();
     const [activeIndex, setActiveIndex] = useState<number | null>(
-      initialGalleryTabIndex
+      contentTab ? 0 : initialGalleryTabIndex
     );
     const [inlineCollapsed, setInlineCollapsed] = useState(
-      initialGalleryTabIndex === null
+      contentTab ? false : initialGalleryTabIndex === null
     );
     const [fullscreenOpen, setFullscreenOpen] = useState(false);
     const [previews, setPreviews] = useState<Record<string, TPreviewState>>({});
@@ -197,6 +211,7 @@ const TextFileTabs = memo(
     const renameInputRef = useRef<HTMLInputElement>(null);
     const skipRenameCommitRef = useRef(false);
     const previewsRef = useRef(previews);
+    const autoOpenedContentTabRef = useRef(false);
     const autoOpenedGalleryRef = useRef(false);
     const galleryContainerRef = useRef<HTMLDivElement>(null);
     const [galleryWidth, setGalleryWidth] = useState(0);
@@ -221,6 +236,16 @@ const TextFileTabs = memo(
       }
 
       return [
+        ...(contentTab
+          ? [
+              {
+                id: 'message-content',
+                kind: 'content' as const,
+                label: contentTab.label,
+                content: contentTab.content
+              }
+            ]
+          : []),
         ...textFiles.map((file) => ({
           id: `text-${file.key}`,
           kind: 'text' as const,
@@ -245,7 +270,7 @@ const TextFileTabs = memo(
             ]
           : [])
       ];
-    }, [files]);
+    }, [contentTab, files]);
     const activeTab = activeIndex === null ? undefined : tabs[activeIndex];
     const activeFile = getTabFile(activeTab);
     const activeImageGalleryTab =
@@ -264,6 +289,10 @@ const TextFileTabs = memo(
       if (!renamingKey) return null;
 
       for (const tab of tabs) {
+        if (tab.kind === 'content') {
+          continue;
+        }
+
         if (tab.kind === 'other') {
           const foundFile = tab.files.find((file) => file.key === renamingKey);
 
@@ -316,6 +345,19 @@ const TextFileTabs = memo(
     }, [activeIndex, tabs.length]);
 
     useLayoutEffect(() => {
+      if (!contentTab) {
+        autoOpenedContentTabRef.current = false;
+        return;
+      }
+
+      if (autoOpenedContentTabRef.current) return;
+
+      autoOpenedContentTabRef.current = true;
+      setActiveIndex(0);
+      setInlineCollapsed(false);
+    }, [contentTab]);
+
+    useLayoutEffect(() => {
       const imageGalleryIndex = tabs.findIndex(
         (tab) => tab.kind === 'imageGallery'
       );
@@ -325,12 +367,17 @@ const TextFileTabs = memo(
         return;
       }
 
+      if (contentTab) {
+        autoOpenedGalleryRef.current = false;
+        return;
+      }
+
       if (autoOpenedGalleryRef.current) return;
 
       autoOpenedGalleryRef.current = true;
       setActiveIndex(imageGalleryIndex);
       setInlineCollapsed(false);
-    }, [tabs]);
+    }, [contentTab, tabs]);
 
     useEffect(() => {
       const imageGalleryTab = tabs.find((tab) => tab.kind === 'imageGallery');
@@ -497,7 +544,9 @@ const TextFileTabs = memo(
         (tab) =>
           tab.kind === 'imageGallery'
             ? tab.files.some((file) => file.id === activeFileId)
-            : tab.kind !== 'other' && tab.file.id === activeFileId
+            : tab.kind !== 'other' &&
+              tab.kind !== 'content' &&
+              tab.file.id === activeFileId
       );
 
       if (index < 0) return;
@@ -647,6 +696,10 @@ const TextFileTabs = memo(
 
     const removeTabFiles = useCallback(
       (tab: TAttachmentTab) => {
+        if (tab.kind === 'content') {
+          return;
+        }
+
         if (tab.kind === 'other' || tab.kind === 'imageGallery') {
           for (const file of tab.files) {
             file.onRemove?.();
@@ -714,6 +767,19 @@ const TextFileTabs = memo(
     }, [commitRenaming]);
 
     const previewContent = (tab: TAttachmentTab, fullHeight?: boolean) => {
+      if (tab.kind === 'content') {
+        return (
+          <div
+            className={cn(
+              'w-full max-w-full overflow-auto bg-[#262626] p-3',
+              fullHeight ? 'min-h-0 flex-1' : 'max-h-[min(35vh,18rem)]'
+            )}
+          >
+            {tab.content}
+          </div>
+        );
+      }
+
       if (tab.kind === 'image') {
         return (
           <ImagePreview
@@ -1110,12 +1176,15 @@ const TextFileTabs = memo(
         ? t('otherFiles')
         : tab.kind === 'imageGallery'
           ? t('photoCount', { count: tab.files.length })
+          : tab.kind === 'content'
+            ? tab.label
           : tab.file.originalName;
 
     const getTabIcon = (tab: TAttachmentTab) => {
       if (tab.kind === 'image' || tab.kind === 'imageGallery')
         return <FileImage className="h-4 w-4 shrink-0" />;
       if (tab.kind === 'other') return <File className="h-4 w-4 shrink-0" />;
+      if (tab.kind === 'content') return <FileText className="h-4 w-4 shrink-0" />;
 
       return <FileText className="h-4 w-4 shrink-0" />;
     };
@@ -1189,6 +1258,7 @@ const TextFileTabs = memo(
         showInlineActions &&
         !disableInlinePreview &&
         !inlineCollapsed;
+      const isFullscreenBar = !showCollapse;
       const isCompose = context === 'compose';
       const showRemoveAction =
         showRemove &&
@@ -1197,11 +1267,10 @@ const TextFileTabs = memo(
         !inlineCollapsed;
       const showDownloadAction = showExpandedActions && !isCompose && !!activeFile;
       const showRenameAction =
-        !renamingKey && !!activeFile?.onRename && previewOpen;
+        !isFullscreenBar && !renamingKey && !!activeFile?.onRename && previewOpen;
       const showFullscreenAction =
         showFullscreen &&
         (disableInlinePreview || !inlineCollapsed);
-      const isFullscreenBar = !showCollapse;
 
       return (
         <div
@@ -1222,13 +1291,15 @@ const TextFileTabs = memo(
             {tabs.map((tab, index) => {
               const meta = getTabMeta(tab, compact);
               const removableTabFiles =
-                tab.kind === 'other'
-                  ? tab.files.filter((file) => !!file.onRemove)
-                  : tab.kind === 'imageGallery'
+                tab.kind === 'content'
+                  ? []
+                  : tab.kind === 'other'
                     ? tab.files.filter((file) => !!file.onRemove)
-                  : tab.file.onRemove
-                    ? [tab.file]
-                    : [];
+                    : tab.kind === 'imageGallery'
+                      ? tab.files.filter((file) => !!file.onRemove)
+                      : tab.file.onRemove
+                        ? [tab.file]
+                        : [];
               const showTabRemoveAction =
                 isCompose &&
                 showRemove &&
@@ -1262,7 +1333,9 @@ const TextFileTabs = memo(
                     }}
                   >
                     {getTabIcon(tab)}
-                    {tab.kind === 'other' || tab.kind === 'imageGallery' ? (
+                    {tab.kind === 'other' ||
+                    tab.kind === 'imageGallery' ||
+                    tab.kind === 'content' ? (
                       <span className="min-w-0 truncate text-sm font-medium">
                         {getTabLabel(tab)}
                       </span>
@@ -1416,6 +1489,10 @@ const TextFileTabs = memo(
         return 'w-[min(36rem,100%)]';
       }
 
+      if (activeTab.kind === 'content') {
+        return 'w-[min(36rem,100%)]';
+      }
+
       return 'w-fit max-w-full';
     })();
 
@@ -1436,7 +1513,8 @@ const TextFileTabs = memo(
               key={activeTab.id}
               className={cn(
                 'min-h-0 max-w-full',
-                activeTab.kind === 'text' && 'w-full',
+                (activeTab.kind === 'text' || activeTab.kind === 'content') &&
+                  'w-full',
                 activeTab.kind === 'imageGallery' &&
                   (galleryFitsSingleRow
                     ? 'overflow-visible'

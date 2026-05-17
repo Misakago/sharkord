@@ -228,6 +228,12 @@ const toMessageHtml = (value: string) => {
   return `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
 };
 
+const toClaudeCodeMarkdownMessageHtml = (value: string) => {
+  const text = value.trim() || '已完成。';
+
+  return `<pre data-claude-code-markdown="true">${escapeHtml(text)}</pre>`;
+};
+
 const formatClaudeMessageTime = (timestamp: number) =>
   new Intl.DateTimeFormat('zh-CN', {
     timeZone: 'Asia/Shanghai',
@@ -713,7 +719,7 @@ class ClaudeCodeAgentManager {
       `如需消息时间、附件路径、发送者等详细信息，使用本地接口查询: curl -s "http://127.0.0.1:${config.server.port}${CLAUDE_CODE_MESSAGE_LOOKUP_PATH}/<id>?token=${session.hookToken}"。`,
       'id 是当前 ClaudeCode 聊天室会话内的业务消息 ID，不是数据库自增主键；不要猜测、递增或跨会话复用。',
       '优先遵循项目 CLAUDE.md 中的 Agent 行为约束。',
-      '完成后只输出简洁回复；如果有输出产物，在最终回复末尾追加 @files(path1,path2)，只列真实存在的文件路径。',
+      '完成后只输出简洁 Markdown 回复；如果有输出产物，在最终回复末尾追加 @files(path1,path2)，只列真实存在的文件路径。',
       '不要把长篇日志、过程推理或无关命令输出放进最终回复。'
     ].join('\n');
 
@@ -2271,7 +2277,7 @@ class ClaudeCodeAgentManager {
     }
 
     let messageId = session.messageId;
-    const content = toMessageHtml(summary);
+    const content = toClaudeCodeMarkdownMessageHtml(summary);
     const metadata = this.withClaudeCodeTaskMetadata(
       messageId ? await this.getMessageMetadata(messageId) : [],
       runId,

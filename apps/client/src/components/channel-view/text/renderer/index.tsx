@@ -11,12 +11,17 @@ import {
   type TJoinedMessage
 } from '@mikotord/shared';
 import { Tooltip } from '@mikotord/ui';
+import MDEditor from '@uiw/react-md-editor';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessageReactions } from '../message-reactions';
 import { TextFileTabs } from '../text-file-tabs';
 import { ClaudeCodeAskUserQuestion } from './claude-code-ask-user-question';
-import { getIsEmojiOnly, getParsedMessageHtml } from './content-cache';
+import {
+  getIsEmojiOnly,
+  getMessageMarkdownSource,
+  getParsedMessageHtml
+} from './content-cache';
 import { extractMessageOpenGraph } from './helpers';
 import { Media } from './media';
 import { extractMessageMedia } from './media-cache';
@@ -29,6 +34,7 @@ type TMessageRendererProps = {
   compactMedia?: boolean;
   activeFileId?: number;
   onRenameFile?: (file: TFile, name: string) => void;
+  showClaudeCodePanelHost?: boolean;
 };
 
 const MessageRenderer = memo(
@@ -38,7 +44,8 @@ const MessageRenderer = memo(
     disableReactions,
     compactMedia,
     activeFileId,
-    onRenameFile
+    onRenameFile,
+    showClaudeCodePanelHost
   }: TMessageRendererProps) => {
     const { t } = useTranslation();
     const editedByUser = useUserById(message.editedBy ?? -1);
@@ -46,6 +53,10 @@ const MessageRenderer = memo(
     const emojiOnly = useMemo(() => getIsEmojiOnly(message), [message]);
 
     const messageHtml = useMemo(() => getParsedMessageHtml(message), [message]);
+    const messageMarkdownSource = useMemo(
+      () => getMessageMarkdownSource(message.content),
+      [message.content]
+    );
     const claudeCodeTask = useMemo(
       () =>
         (message.metadata ?? []).find(
@@ -88,42 +99,56 @@ const MessageRenderer = memo(
       () => extractMessageOpenGraph(message, allMedia),
       [message, allMedia]
     );
+    const shouldUseContentFilePreview =
+      (hasMessageContent || !!message.editedAt) &&
+      message.files.length > 0 &&
+      !disableFiles;
+    const editedIndicator = message.editedAt ? (
+      <Tooltip
+        content={
+          <div className="flex flex-col gap-1">
+            <RelativeTime date={new Date(message.editedAt)}>
+              {(relativeTime) => (
+                <span className="text-secondary text-xs">
+                  {editedByUser
+                    ? getRenderedUsername(editedByUser)
+                    : t('unknownUser')}{' '}
+                  {relativeTime}
+                </span>
+              )}
+            </RelativeTime>
+          </div>
+        }
+      >
+        <span className="msg-edit ml-1 text-xs text-muted-foreground">
+          {t('edited')}
+        </span>
+      </Tooltip>
+    ) : null;
+    const messageContent = messageMarkdownSource !== undefined ? (
+      <div data-color-mode="dark" className="max-w-full">
+        <MDEditor.Markdown
+          source={messageMarkdownSource}
+          className="!bg-transparent text-sm"
+        />
+        {editedIndicator}
+      </div>
+    ) : hasMessageContent || message.editedAt ? (
+      <div
+        className={cn(
+          'prose max-w-full wrap-break-word msg-content',
+          emojiOnly && 'emoji-only',
+          message.editedAt && 'msg-edited'
+        )}
+      >
+        {messageHtml}
+        {editedIndicator}
+      </div>
+    ) : null;
 
     return (
       <div className="message-renderer flex w-fit max-w-full flex-col gap-1 [&:has([data-attachment-expanded=true])]:w-full">
-        {(hasMessageContent || message.editedAt) && (
-          <div
-            className={cn(
-              'prose max-w-full wrap-break-word msg-content',
-              emojiOnly && 'emoji-only',
-              message.editedAt && 'msg-edited'
-            )}
-          >
-            {messageHtml}
-            {message.editedAt && (
-              <Tooltip
-                content={
-                  <div className="flex flex-col gap-1">
-                    <RelativeTime date={new Date(message.editedAt)}>
-                      {(relativeTime) => (
-                        <span className="text-secondary text-xs">
-                          {editedByUser
-                            ? getRenderedUsername(editedByUser)
-                            : t('unknownUser')}{' '}
-                          {relativeTime}
-                        </span>
-                      )}
-                    </RelativeTime>
-                  </div>
-                }
-              >
-                <span className="msg-edit ml-1 text-xs text-muted-foreground">
-                  {t('edited')}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-        )}
+        {!shouldUseContentFilePreview && messageContent}
 
         {claudeCodeQuestions.map((claudeCodeQuestion) => (
           <ClaudeCodeAskUserQuestion
@@ -146,6 +171,13 @@ const MessageRenderer = memo(
             </span>
             <span className="text-emerald-200/70 underline">展开</span>
           </button>
+        )}
+
+        {showClaudeCodePanelHost && (
+          <div
+            data-claude-code-active-panel-host="true"
+            className="mt-2"
+          />
         )}
 
         <Media media={allMedia} compact={compactMedia} />
@@ -175,6 +207,14 @@ const MessageRenderer = memo(
               }))}
               activeFileId={activeFileId}
               disableInlinePreview={compactMedia}
+              contentTab={
+                shouldUseContentFilePreview && messageContent
+                  ? {
+                      label: '回复',
+                      content: messageContent
+                    }
+                  : undefined
+              }
             />
           </div>
         )}

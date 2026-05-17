@@ -3,6 +3,12 @@ import {
   type TMessageComposeFile
 } from '@/components/message-compose';
 import {
+  closeClaudeCodeHistoryPanel,
+  closeClaudeCodePanel
+} from '@/features/app/actions';
+import {
+  useClaudeCodeHistoryOpen,
+  useClaudeCodePanelOpen,
   useMessageJumpTarget,
   useThreadSidebar
 } from '@/features/app/hooks';
@@ -25,7 +31,7 @@ import {
   type TTempFile
 } from '@mikotord/shared';
 import { throttle } from 'lodash-es';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ChatInputDivider } from './chat-input-divider';
@@ -85,7 +91,27 @@ const TextChannel = memo(
       scrollToMessage
     } = useMessages(channelId);
     const messageJumpTarget = useMessageJumpTarget();
+    const claudeCodePanelOpen = useClaudeCodePanelOpen();
+    const claudeCodeHistoryOpen = useClaudeCodeHistoryOpen();
     const isJumpingToChannel = messageJumpTarget?.channelId === channelId;
+    const activeClaudeCodeTaskMessageId = useMemo(
+      () =>
+        [...messages]
+          .reverse()
+          .find((message) =>
+            (message.metadata ?? []).some(
+              (metadata) =>
+                metadata?.kind === 'claude_code_task' &&
+                (metadata.status === 'running' ||
+                  metadata.status === 'waiting_for_user')
+            )
+          )?.id,
+      [messages]
+    );
+    const shouldShowClaudeCodePanelHost =
+      claudeCodePanelOpen && activeClaudeCodeTaskMessageId !== undefined;
+    const showClaudeCodeVirtualPanelBubble =
+      claudeCodePanelOpen && activeClaudeCodeTaskMessageId === undefined;
     const hasPendingClaudeCodeQuestion = useMemo(
       () =>
         messages.some((message) =>
@@ -99,6 +125,42 @@ const TextChannel = memo(
     );
 
     useScrollToJumpTarget(channelId, scrollToMessage);
+
+    const autoOpenedClaudeCodeTaskMessageIdRef = useRef<number | undefined>();
+    const previousActiveClaudeCodeTaskMessageIdRef = useRef<
+      number | undefined
+    >();
+
+    useEffect(() => {
+      if (activeClaudeCodeTaskMessageId === undefined) return;
+      if (
+        autoOpenedClaudeCodeTaskMessageIdRef.current ===
+        activeClaudeCodeTaskMessageId
+      ) {
+        return;
+      }
+
+      autoOpenedClaudeCodeTaskMessageIdRef.current =
+        activeClaudeCodeTaskMessageId;
+      closeClaudeCodeHistoryPanel();
+      closeClaudeCodePanel();
+    }, [activeClaudeCodeTaskMessageId]);
+
+    useEffect(() => {
+      const previousActiveTaskId =
+        previousActiveClaudeCodeTaskMessageIdRef.current;
+
+      if (
+        previousActiveTaskId !== undefined &&
+        activeClaudeCodeTaskMessageId === undefined
+      ) {
+        closeClaudeCodeHistoryPanel();
+        closeClaudeCodePanel();
+      }
+
+      previousActiveClaudeCodeTaskMessageIdRef.current =
+        activeClaudeCodeTaskMessageId;
+    }, [activeClaudeCodeTaskMessageId]);
 
     const draftChannelKey = getChannelDraftKey(channelId);
 
@@ -314,8 +376,51 @@ const TextChannel = memo(
                 onEditMessageSelect={startEditingMessage}
                 replyTargetMessageId={replyingToMessage?.id}
                 activeThreadMessageId={activeThreadMessageId}
+                claudeCodePanelMessageId={
+                  shouldShowClaudeCodePanelHost
+                    ? activeClaudeCodeTaskMessageId
+                    : undefined
+                }
               />
             ))}
+            {claudeCodeHistoryOpen && (
+              <div className="min-w-0 max-w-dvw pt-2 pr-2">
+                <div
+                  data-claude-code-history-panel-host="true"
+                  className="w-full max-w-full"
+                />
+              </div>
+            )}
+            {showClaudeCodeVirtualPanelBubble && (
+              <div
+                className="flex min-w-0 max-w-dvw flex-col gap-1.5 pl-2 pt-2 pr-2"
+                data-claude-code-virtual-message="true"
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted text-xl font-bold text-foreground">
+                    C
+                  </div>
+                  <div className="flex min-w-0 w-full flex-col pt-0">
+                    <div className="flex min-h-6 items-start gap-2 pl-1 leading-none select-none">
+                      <span className="font-bold leading-none">
+                        ClaudeCode
+                      </span>
+                      <span className="pt-0.5 text-primary/60 text-xs leading-none">
+                        临时终端
+                      </span>
+                    </div>
+                    <div className="flex min-w-0 flex-col items-start">
+                      <div className="message-shell relative ml-1 inline-flex max-w-full flex-col rounded-md px-1 py-0.5 bg-accent/30">
+                        <div
+                          data-claude-code-virtual-panel-host="true"
+                          className="w-full max-w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
