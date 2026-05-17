@@ -18,15 +18,15 @@ const claudeCodeStopHookRouteHandler = async (
 
   try {
     const body = await getJsonBody(req);
-    const handled = await claudeCodeAgentManager.handleStopHook(token, body);
+    const response = await claudeCodeAgentManager.handleStopHook(token, body);
 
-    if (!handled) {
+    if (response === false) {
       sendJsonError(res, 404, 'Unknown ClaudeCode session');
       return;
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true }));
+    res.end(JSON.stringify(response));
   } catch (error) {
     logger.error('ClaudeCode stop hook failed: %s', getErrorMessage(error));
     await claudeCodeAgentManager.handleHookFailure(
@@ -85,8 +85,8 @@ const claudeCodeMessageLookupRouteHandler = async (
 ) => {
   const url = new URL(req.url ?? '', `http://${req.headers.host || 'localhost'}`);
   const token = url.searchParams.get('token');
-  const match = /^\/claude-code\/messages\/(\d+)$/.exec(url.pathname);
-  const messageId = match ? Number(match[1]) : undefined;
+  const match = /^\/claude-code\/messages\/([^/]+)$/.exec(url.pathname);
+  const messageId = match ? decodeURIComponent(match[1]!) : undefined;
 
   if (!token) {
     sendJsonError(res, 401, 'Missing hook token');

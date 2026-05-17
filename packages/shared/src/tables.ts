@@ -120,7 +120,7 @@ export type TJoinedMessageReaction = TMessageReaction & {
 
 export type TMessageReplyPreview = Pick<
   TMessage,
-  'id' | 'content' | 'userId' | 'pluginId'
+  'id' | 'messageId' | 'content' | 'userId' | 'pluginId'
 >;
 
 export type TJoinedMessage = TMessage & {

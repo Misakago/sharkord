@@ -34,7 +34,14 @@ import {
   getUserByIdentity,
   getUserByToken
 } from '../db/queries/users';
-import { channels, directMessages, messageFiles, messages, users } from '../db/schema';
+import {
+  channels,
+  createMessageBusinessId,
+  directMessages,
+  messageFiles,
+  messages,
+  users
+} from '../db/schema';
 import { DATA_PATH, PUBLIC_PATH } from '../helpers/paths';
 import { logger } from '../logger';
 import { fileManager } from '../utils/file-manager';
@@ -89,6 +96,11 @@ type TStopHookInput = {
   stop_hook_active?: boolean;
   last_assistant_message?: string;
   transcript_path?: string;
+};
+
+type TStopHookResponse = {
+  suppressOutput: boolean;
+  systemMessage?: string;
 };
 
 type TAskUserQuestionHookInput = {
@@ -697,8 +709,9 @@ class ClaudeCodeAgentManager {
     [
       '你是聊天室内置的 ClaudeCode Agent。',
       `当前唯一聊天用户 ID: ${session.userId}。这是稳定上下文，不需要用户每条消息重复提供。`,
-      'TTY stdin 注入内容只包含聊天气泡原文和 message_id；不要把系统字段当作用户正文。',
-      `如需消息时间、附件路径、发送者等详细信息，使用本地接口查询: curl -s "http://127.0.0.1:${config.server.port}${CLAUDE_CODE_MESSAGE_LOOKUP_PATH}/<message_id>?token=${session.hookToken}"。`,
+      'TTY stdin 注入内容只包含聊天气泡原文、附件路径和短随机字符串 id；不要把系统字段当作用户正文。',
+      `如需消息时间、附件路径、发送者等详细信息，使用本地接口查询: curl -s "http://127.0.0.1:${config.server.port}${CLAUDE_CODE_MESSAGE_LOOKUP_PATH}/<id>?token=${session.hookToken}"。`,
+      'id 是当前 ClaudeCode 聊天室会话内的业务消息 ID，不是数据库自增主键；不要猜测、递增或跨会话复用。',
       '优先遵循项目 CLAUDE.md 中的 Agent 行为约束。',
       '完成后只输出简洁回复；如果有输出产物，在最终回复末尾追加 @files(path1,path2)，只列真实存在的文件路径。',
       '不要把长篇日志、过程推理或无关命令输出放进最终回复。'
@@ -1039,7 +1052,15 @@ class ClaudeCodeAgentManager {
 
     if (!snapshot?.messages?.length) return;
 
-    await db.insert(messages).values(snapshot.messages);
+    await db.insert(messages).values(
+      snapshot.messages.map((message) => ({
+        ...message,
+        messageId:
+          message.messageId && message.messageId.length <= 18
+            ? message.messageId
+            : createMessageBusinessId()
+      }))
+    );
 
     if (snapshot.messageFiles?.length) {
       await db.insert(messageFiles).values(snapshot.messageFiles);
@@ -1822,14 +1843,13 @@ class ClaudeCodeAgentManager {
       getPlainTextFromHtml(message.content ?? '').trim()
     );
     const filePaths = message.files.map((file) => path.join(PUBLIC_PATH, file.name));
-    const metadata = [
-      `message_id: ${message.id}`,
-      filePaths.length > 0 ? `files: ${filePaths.join(', ')}` : undefined
-    ]
-      .filter(Boolean)
-      .join(' | ');
 
-    return [text, metadata]
+    return [
+      text,
+      filePaths.length > 0 ? `files: ${filePaths.join(', ')}` : undefined,
+      message.replyTo?.messageId ? `reply_to: ${message.replyTo.messageId}` : undefined,
+      `id: ${message.messageId}`
+    ]
       .filter(Boolean)
       .join(' | ');
   };
@@ -2097,26 +2117,54 @@ class ClaudeCodeAgentManager {
     return { cancelled: true };
   };
 
-  public getMessageDetailsForHook = async (token: string, messageId: number) => {
+  public getMessageDetailsForHook = async (token: string, messageId: string) => {
     const session = this.getSessionByHookToken(token);
 
     if (!session) return undefined;
 
-    const message = await getMessage(messageId);
+    const messageRow = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.messageId, messageId))
+      .get();
+
+    if (!messageRow) return undefined;
+
+    const message = await getMessage(messageRow.id);
 
     if (!message?.userId) return undefined;
-    if (message.userId !== session.userId) return undefined;
-    if (!(await this.isClaudeCodeDm(message.channelId, message.userId))) {
+    const agentUserId = await this.ensureAgentUser();
+
+    if (session.channelId && message.channelId !== session.channelId) {
+      return undefined;
+    }
+
+    if (message.userId !== session.userId && message.userId !== agentUserId) {
+      return undefined;
+    }
+
+    if (!(await this.isClaudeCodeDm(message.channelId, session.userId))) {
       return undefined;
     }
 
     return {
-      id: message.id,
+      id: message.messageId,
       userId: message.userId,
+      sender: message.userId === agentUserId ? CLAUDE_CODE_AGENT_NAME : 'user',
       channelId: message.channelId,
       createdAt: message.createdAt,
       time: formatClaudeMessageTime(message.createdAt),
       text: getPlainTextFromHtml(message.content ?? '').trim(),
+      replyToMessageId: message.replyTo?.messageId ?? null,
+      replyTo: message.replyTo
+        ? {
+            id: message.replyTo.messageId,
+            userId: message.replyTo.userId,
+            sender:
+              message.replyTo.userId === agentUserId ? CLAUDE_CODE_AGENT_NAME : 'user',
+            text: getPlainTextFromHtml(message.replyTo.content ?? '').trim()
+          }
+        : null,
       files: message.files.map((file) => ({
         id: file.id,
         originalName: file.originalName,
@@ -2189,6 +2237,14 @@ class ClaudeCodeAgentManager {
     }
   };
 
+  private buildStopHookResponse = (messageId?: string): TStopHookResponse =>
+    messageId
+      ? {
+          suppressOutput: true,
+          systemMessage: `ClaudeCode reply synced to chat. id: ${messageId}`
+        }
+      : { suppressOutput: true };
+
   public handleStopHook = async (token: string, input: TStopHookInput) => {
     const session = this.getSessionByHookToken(token);
 
@@ -2196,7 +2252,7 @@ class ClaudeCodeAgentManager {
 
     const channelId = session.channelId;
 
-    if (!channelId) return true;
+    if (!channelId) return this.buildStopHookResponse();
 
     const runId = session.runId ?? randomUUIDv7();
     const rawMessage = input.last_assistant_message?.trim() || '已完成。';
@@ -2249,6 +2305,9 @@ class ClaudeCodeAgentManager {
       messageId = inserted.id;
     }
 
+    const syncedMessage = await getMessage(messageId);
+    const syncedBusinessMessageId = syncedMessage?.messageId ?? createMessageBusinessId();
+
     await this.attachFiles(messageId, savedFiles);
     await publishMessage(messageId, channelId, session.messageId ? 'update' : 'create');
 
@@ -2268,7 +2327,7 @@ class ClaudeCodeAgentManager {
       session.pty = undefined;
     }
 
-    return true;
+    return this.buildStopHookResponse(syncedBusinessMessageId);
   };
 
   public handleHookFailure = async (token: string, message: string) => {

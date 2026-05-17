@@ -2,6 +2,7 @@ import {
   type TActivityLogDetailsMap,
   type TMessageMetadata
 } from '@mikotord/shared';
+import { randomUUID } from 'crypto';
 import {
   index,
   integer,
@@ -10,6 +11,9 @@ import {
   text,
   uniqueIndex
 } from 'drizzle-orm/sqlite-core';
+
+const createMessageBusinessId = () =>
+  `m_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 
 const files = sqliteTable(
   'files',
@@ -244,6 +248,7 @@ const messages = sqliteTable(
   'messages',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
+    messageId: text('message_id').notNull().$defaultFn(createMessageBusinessId),
     content: text('content'),
     userId: integer('user_id').references(() => users.id, {
       onDelete: 'cascade'
@@ -269,6 +274,7 @@ const messages = sqliteTable(
     })
   },
   (t) => [
+    uniqueIndex('messages_message_id_idx').on(t.messageId),
     index('messages_user_idx').on(t.userId),
     index('messages_channel_idx').on(t.channelId),
     index('messages_created_idx').on(t.createdAt),
@@ -521,6 +527,7 @@ export {
   channelRolePermissions,
   channels,
   channelUserPermissions,
+  createMessageBusinessId,
   directMessages,
   emojis,
   files,

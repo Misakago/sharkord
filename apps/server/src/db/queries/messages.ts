@@ -34,6 +34,7 @@ const getReplyPreviewByMessageId = async (rows: TMessage[]) => {
   const replyRows = await db
     .select({
       id: messages.id,
+      messageId: messages.messageId,
       content: messages.content,
       userId: messages.userId,
       pluginId: messages.pluginId
