@@ -34,6 +34,7 @@ type TMessageRendererProps = {
   compactMedia?: boolean;
   activeFileId?: number;
   onRenameFile?: (file: TFile, name: string) => void;
+  onReplaceFile?: (file: TFile, replacement: File) => Promise<unknown>;
   showClaudeCodePanelHost?: boolean;
 };
 
@@ -45,6 +46,7 @@ const MessageRenderer = memo(
     compactMedia,
     activeFileId,
     onRenameFile,
+    onReplaceFile,
     showClaudeCodePanelHost
   }: TMessageRendererProps) => {
     const { t } = useTranslation();
@@ -100,9 +102,7 @@ const MessageRenderer = memo(
       [message, allMedia]
     );
     const shouldUseContentFilePreview =
-      (hasMessageContent || !!message.editedAt) &&
-      message.files.length > 0 &&
-      !disableFiles;
+      hasMessageContent && message.files.length > 0 && !disableFiles;
     const editedIndicator = message.editedAt ? (
       <Tooltip
         content={
@@ -125,26 +125,33 @@ const MessageRenderer = memo(
         </span>
       </Tooltip>
     ) : null;
-    const messageContent = messageMarkdownSource !== undefined ? (
-      <div data-color-mode="dark" className="max-w-full">
-        <MDEditor.Markdown
-          source={messageMarkdownSource}
-          className="!bg-transparent text-sm"
-        />
+    const messageBodyContent =
+      messageMarkdownSource !== undefined ? (
+        <div data-color-mode="dark" className="max-w-full">
+          <MDEditor.Markdown
+            source={messageMarkdownSource}
+            className="!bg-transparent text-sm"
+          />
+        </div>
+      ) : hasMessageContent || message.editedAt ? (
+        <div
+          className={cn(
+            'prose max-w-full wrap-break-word msg-content',
+            emojiOnly && 'emoji-only',
+            message.editedAt && 'msg-edited'
+          )}
+        >
+          {messageHtml}
+        </div>
+      ) : null;
+    const messageContent = messageBodyContent ? (
+      <>
+        {messageBodyContent}
         {editedIndicator}
-      </div>
-    ) : hasMessageContent || message.editedAt ? (
-      <div
-        className={cn(
-          'prose max-w-full wrap-break-word msg-content',
-          emojiOnly && 'emoji-only',
-          message.editedAt && 'msg-edited'
-        )}
-      >
-        {messageHtml}
-        {editedIndicator}
-      </div>
-    ) : null;
+      </>
+    ) : (
+      editedIndicator
+    );
 
     return (
       <div className="message-renderer flex w-fit max-w-full flex-col gap-1 [&:has([data-attachment-expanded=true])]:w-full">
@@ -174,10 +181,7 @@ const MessageRenderer = memo(
         )}
 
         {showClaudeCodePanelHost && (
-          <div
-            data-claude-code-active-panel-host="true"
-            className="mt-2"
-          />
+          <div data-claude-code-active-panel-host="true" className="mt-2" />
         )}
 
         <Media media={allMedia} compact={compactMedia} />
@@ -189,6 +193,8 @@ const MessageRenderer = memo(
             messageId={message.id}
           />
         )}
+
+        {shouldUseContentFilePreview && editedIndicator}
 
         {message.files.length > 0 && !disableFiles && (
           <div className="message-attachments flex w-fit max-w-full flex-wrap items-start gap-2 [&:has([data-attachment-expanded=true])]:w-full">
@@ -203,15 +209,18 @@ const MessageRenderer = memo(
                 href: getFileUrl(file),
                 onRename: onRenameFile
                   ? (name) => onRenameFile(file, name)
+                  : undefined,
+                onReplace: onReplaceFile
+                  ? (replacement) => onReplaceFile(file, replacement)
                   : undefined
               }))}
               activeFileId={activeFileId}
               disableInlinePreview={compactMedia}
               contentTab={
-                shouldUseContentFilePreview && messageContent
+                shouldUseContentFilePreview && messageBodyContent
                   ? {
                       label: '回复',
-                      content: messageContent
+                      content: messageBodyContent
                     }
                   : undefined
               }

@@ -13,6 +13,7 @@ import {
 import { useFlatPluginCommands } from '@/features/server/plugins/hooks';
 import { getFileNameWithLockedExtension } from '@/helpers/file-name';
 import { getFileUrl } from '@/helpers/get-file-url';
+import { uploadFile } from '@/helpers/upload-file';
 import { useUploadFiles, type TDisplayItem } from '@/hooks/use-upload-files';
 import { getTRPCClient } from '@/lib/trpc';
 import type { TReplyTarget } from '@/types';
@@ -190,17 +191,14 @@ const MessageCompose = memo(
       displayItems,
       removeFile,
       renameFile,
+      replaceFile,
       clearFiles,
       uploading,
       uploadingSize,
       uploadSpeed,
       openFileDialog,
       fileInputProps
-    } = useUploadFiles(
-      channelId,
-      containerRef,
-      !canSendMessages
-    );
+    } = useUploadFiles(channelId, containerRef, !canSendMessages);
 
     const editingDisplayItems = useMemo<TDisplayItem[]>(
       () =>
@@ -383,6 +381,47 @@ const MessageCompose = memo(
       [renameFile]
     );
 
+    const replaceComposeFile = useCallback(
+      async (item: TDisplayItem, replacement: File) => {
+        if (item.existingFile && editingMessage) {
+          const temporaryFile = await uploadFile(replacement);
+
+          if (!temporaryFile) {
+            throw new Error(t('failedSaveFile'));
+          }
+
+          const trpc = getTRPCClient();
+          const replacedFile = await trpc.files.replaceMessageFile.mutate({
+            messageId: editingMessage.id,
+            fileId: item.existingFile.id,
+            temporaryFileId: temporaryFile.id,
+            name: replacement.name || item.existingFile.originalName
+          });
+
+          setEditingFiles((current) =>
+            current.map((file) =>
+              file.id === item.existingFile!.id ? replacedFile : file
+            )
+          );
+
+          return replacedFile;
+        }
+
+        if (item.file) {
+          const replacedFile = await replaceFile(item.file.id, replacement);
+
+          if (!replacedFile) {
+            throw new Error(t('failedSaveFile'));
+          }
+
+          return replacedFile;
+        }
+
+        throw new Error(t('failedSaveFile'));
+      },
+      [editingMessage, replaceFile, t]
+    );
+
     const composeAttachmentFiles = useMemo(
       () =>
         composeDisplayItems.map((item) => ({
@@ -391,7 +430,9 @@ const MessageCompose = memo(
           size: item.size,
           extension: item.extension,
           mimeType: item.mimeType,
-          href: item.existingFile ? getFileUrl(item.existingFile) : item.previewUrl,
+          href: item.existingFile
+            ? getFileUrl(item.existingFile)
+            : item.previewUrl,
           previewUrl: item.previewUrl,
           sourceFile: item.sourceFile,
           progress: item.progress,
@@ -402,9 +443,18 @@ const MessageCompose = memo(
           onRename:
             item.existingFile || item.file
               ? (name: string) => renameComposeFile(item, name)
+              : undefined,
+          onReplace:
+            item.existingFile || item.file
+              ? (file: File) => replaceComposeFile(item, file)
               : undefined
         })),
-      [composeDisplayItems, removeComposeFile, renameComposeFile]
+      [
+        composeDisplayItems,
+        removeComposeFile,
+        renameComposeFile,
+        replaceComposeFile
+      ]
     );
     const requestAttachmentLayout = useCallback(() => {
       setAttachmentLayoutVersion((version) => version + 1);

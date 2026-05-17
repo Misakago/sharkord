@@ -348,6 +348,9 @@
   "signedUrlsTtlLabel": "Signed URL expiration",
   "signedUrlsTtlDesc": "How long a signed URL remains valid before it expires. Shorter durations enhance security but may cause inconvenience for users accessing files.",
   "signedUrlsTtlUnit": "minutes",
+  "officeServerUrlLabel": "Office server URL",
+  "officeServerUrlDesc": "Self-hosted Sharkord-compatible ranuts/document server used for Office previews and editing. Leave empty to disable Office previews.",
+  "officeServerUrlPlaceholder": "https://office.example.com/document",
 
   "moderateUserAction": "Moderate User",
 

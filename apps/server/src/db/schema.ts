@@ -101,7 +101,8 @@ const settings = sqliteTable(
       'storage_image_optimization_quality'
     )
       .notNull()
-      .default(80)
+      .default(80),
+    officeServerUrl: text('office_server_url').notNull().default('')
   },
   (t) => [
     index('settings_server_idx').on(t.serverId),

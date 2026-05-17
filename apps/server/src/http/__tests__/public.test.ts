@@ -156,6 +156,15 @@ describe('/public', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Expose-Headers')).toInclude(
+      'Content-Disposition'
+    );
+    expect(response.headers.get('Access-Control-Expose-Headers')).toInclude(
+      'ETag'
+    );
+    expect(response.headers.get('Access-Control-Expose-Headers')).toInclude(
+      'Last-Modified'
+    );
     expect(response.headers.get('Content-Type')).toInclude('text/plain');
     expect(response.headers.get('Content-Length')).toBe(
       dbFile!.size.toString()

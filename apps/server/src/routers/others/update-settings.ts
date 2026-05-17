@@ -13,6 +13,18 @@ import { pluginManager } from '../../plugins';
 import { enqueueActivityLog } from '../../queues/activity-log';
 import { protectedProcedure } from '../../utils/trpc';
 
+const isValidOfficeServerUrl = (value: string) => {
+  if (!value) return true;
+
+  try {
+    const url = new URL(value);
+
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 const updateSettingsRoute = protectedProcedure
   .input(
     z.object({
@@ -42,6 +54,14 @@ const updateSettingsRoute = protectedProcedure
         .int()
         .min(STORAGE_MIN_IMAGE_OPTIMIZATION_QUALITY)
         .max(STORAGE_MAX_IMAGE_OPTIMIZATION_QUALITY)
+        .optional(),
+      officeServerUrl: z
+        .string()
+        .max(2048)
+        .transform((value) => value.trim())
+        .refine(isValidOfficeServerUrl, {
+          message: 'Office server URL must be empty or an HTTP(S) URL'
+        })
         .optional()
     })
   )
@@ -73,7 +93,8 @@ const updateSettingsRoute = protectedProcedure
       storageSignedUrlsEnabled: input.storageSignedUrlsEnabled,
       storageSignedUrlsTtlSeconds: input.storageSignedUrlsTtlSeconds,
       storageImageOptimizationEnabled: input.storageImageOptimizationEnabled,
-      storageImageOptimizationQuality: input.storageImageOptimizationQuality
+      storageImageOptimizationQuality: input.storageImageOptimizationQuality,
+      officeServerUrl: input.officeServerUrl
     });
 
     if (oldEnablePlugins !== input.enablePlugins) {

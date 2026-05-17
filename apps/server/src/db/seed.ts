@@ -70,7 +70,8 @@ const seedDatabase = async () => {
     storageSignedUrlsEnabled: false,
     storageSignedUrlsTtlSeconds: STORAGE_DEFAULT_SIGNED_URLS_TTL_SECONDS,
     storageImageOptimizationEnabled: false,
-    storageImageOptimizationQuality: STORAGE_DEFAULT_IMAGE_OPTIMIZATION_QUALITY
+    storageImageOptimizationQuality: STORAGE_DEFAULT_IMAGE_OPTIMIZATION_QUALITY,
+    officeServerUrl: ''
   };
 
   await db.insert(settings).values(initialSettings);

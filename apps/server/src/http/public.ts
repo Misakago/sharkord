@@ -25,6 +25,15 @@ const INLINE_ALLOW_LIST = [
   'image/avif'
 ];
 
+const CORS_EXPOSED_FILE_HEADERS = [
+  'Accept-Ranges',
+  'Content-Disposition',
+  'Content-Length',
+  'Content-Range',
+  'ETag',
+  'Last-Modified'
+].join(', ');
+
 const pipeFileStream = (
   filePath: string,
   res: http.ServerResponse,
@@ -167,7 +176,10 @@ const publicRouteHandler = async (
       lastModified,
       cacheControl,
       mtimeMs: stat.mtimeMs,
-      extraHeaders: { Vary: 'Range' }
+      extraHeaders: {
+        'Access-Control-Expose-Headers': CORS_EXPOSED_FILE_HEADERS,
+        Vary: 'Range'
+      }
     })
   ) {
     return;
@@ -210,6 +222,7 @@ const publicRouteHandler = async (
       ETag: etag,
       'Last-Modified': lastModified,
       'Cache-Control': cacheControl,
+      'Access-Control-Expose-Headers': CORS_EXPOSED_FILE_HEADERS,
       Vary: 'Range'
     });
 
@@ -223,6 +236,7 @@ const publicRouteHandler = async (
       ETag: etag,
       'Last-Modified': lastModified,
       'Cache-Control': cacheControl,
+      'Access-Control-Expose-Headers': CORS_EXPOSED_FILE_HEADERS,
       Vary: 'Range'
     });
 

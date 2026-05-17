@@ -23,6 +23,7 @@ export type TPublicServerSettings = Pick<
   | 'enableSearch'
   | 'showWelcomeDialog'
   | 'storageSignedUrlsEnabled'
+  | 'officeServerUrl'
 >;
 
 export type TGenericObject = {
@@ -70,7 +71,10 @@ export type TClaudeCodeAskUserQuestion = {
   multiSelect?: boolean;
 };
 
-export type TClaudeCodeAskUserQuestionAnswers = Record<string, string | string[]>;
+export type TClaudeCodeAskUserQuestionAnswers = Record<
+  string,
+  string | string[]
+>;
 
 export type TClaudeCodeAskUserQuestionMetadata = {
   kind: 'claude_code_ask_user_question';

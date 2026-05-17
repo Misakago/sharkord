@@ -3,6 +3,7 @@ import { openThreadSidebar } from '@/features/app/actions';
 import { useMessageJumpTarget } from '@/features/app/hooks';
 import { useCan } from '@/features/server/hooks';
 import { useIsOwnUser, useOwnUserId } from '@/features/server/users/hooks';
+import { uploadFile } from '@/helpers/upload-file';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import {
@@ -105,8 +106,7 @@ const Message = memo(
             files: message.files.map((file) => ({
               type: 'existing' as const,
               id: file.id,
-              name:
-                file.id === fileToRename.id ? name : file.originalName
+              name: file.id === fileToRename.id ? name : file.originalName
             }))
           });
 
@@ -123,6 +123,28 @@ const Message = memo(
         message.id,
         t
       ]
+    );
+
+    const replaceMessageFile = useCallback(
+      async (fileToReplace: TFile, replacement: File) => {
+        if (!message.editable || !canManage) return;
+
+        const temporaryFile = await uploadFile(replacement);
+
+        if (!temporaryFile) {
+          throw new Error(t('failedSaveFile'));
+        }
+
+        const trpc = getTRPCClient();
+
+        await trpc.files.replaceMessageFile.mutate({
+          messageId: message.id,
+          fileId: fileToReplace.id,
+          temporaryFileId: temporaryFile.id,
+          name: replacement.name || fileToReplace.originalName
+        });
+      },
+      [canManage, message.editable, message.id, t]
     );
 
     const showActions = useCallback(() => {
@@ -186,6 +208,9 @@ const Message = memo(
           activeFileId={activeFileId}
           onRenameFile={
             message.editable && canManage ? renameMessageFile : undefined
+          }
+          onReplaceFile={
+            message.editable && canManage ? replaceMessageFile : undefined
           }
           showClaudeCodePanelHost={showClaudeCodePanelHost}
         />

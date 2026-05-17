@@ -9,10 +9,7 @@ let token: string;
 const BRAND_PATTERN = /\b(?:sharkord|mikotord)\b/gi;
 
 const sanitizeBrandText = (value: string) =>
-  value
-    .replace(BRAND_PATTERN, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  value.replace(BRAND_PATTERN, '').replace(/\s+/g, ' ').trim();
 
 const sanitizeBrandName = (name: string) => sanitizeBrandText(name) || 'Server';
 
@@ -20,7 +17,11 @@ const sanitizeBrandDescription = (description?: string | null) => {
   const value = description ?? '';
   const cleaned = sanitizeBrandText(value);
 
-  if (/^this is the default server description\. change me in the server settings!$/i.test(cleaned)) {
+  if (
+    /^this is the default server description\. change me in the server settings!$/i.test(
+      cleaned
+    )
+  ) {
     return '';
   }
 
@@ -77,7 +78,8 @@ const getPublicSettings: () => Promise<TPublicServerSettings> = async () => {
     enablePlugins: settings.enablePlugins,
     enableSearch: settings.enableSearch,
     showWelcomeDialog: settings.showWelcomeDialog,
-    storageSignedUrlsEnabled: settings.storageSignedUrlsEnabled
+    storageSignedUrlsEnabled: settings.storageSignedUrlsEnabled,
+    officeServerUrl: settings.officeServerUrl
   };
 
   return publicSettings;

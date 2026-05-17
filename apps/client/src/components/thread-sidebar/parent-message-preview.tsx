@@ -5,6 +5,7 @@ import { useCan } from '@/features/server/hooks';
 import { useParentMessage } from '@/features/server/messages/hooks';
 import { usePluginMetadata } from '@/features/server/plugins/hooks';
 import { useIsOwnUser, useUserById } from '@/features/server/users/hooks';
+import { uploadFile } from '@/helpers/upload-file';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import {
@@ -74,6 +75,27 @@ const ParentMessageContent = memo(
         t
       ]
     );
+    const replaceMessageFile = useCallback(
+      async (fileToReplace: TFile, replacement: File) => {
+        if (!parentMessage.editable || !canManage) return;
+
+        const temporaryFile = await uploadFile(replacement);
+
+        if (!temporaryFile) {
+          throw new Error(t('failedSaveFile'));
+        }
+
+        const trpc = getTRPCClient();
+
+        await trpc.files.replaceMessageFile.mutate({
+          messageId: parentMessage.id,
+          fileId: fileToReplace.id,
+          temporaryFileId: temporaryFile.id,
+          name: replacement.name || fileToReplace.originalName
+        });
+      },
+      [canManage, parentMessage.editable, parentMessage.id, t]
+    );
 
     return (
       <div className="overflow-x-hidden border-b border-border px-2 py-2">
@@ -128,6 +150,11 @@ const ParentMessageContent = memo(
                     onRenameFile={
                       parentMessage.editable && canManage
                         ? renameMessageFile
+                        : undefined
+                    }
+                    onReplaceFile={
+                      parentMessage.editable && canManage
+                        ? replaceMessageFile
                         : undefined
                     }
                   />

@@ -7,7 +7,6 @@ import {
   closeClaudeCodePanel
 } from '@/features/app/actions';
 import {
-  useClaudeCodeHistoryOpen,
   useClaudeCodePanelOpen,
   useMessageJumpTarget,
   useThreadSidebar
@@ -75,7 +74,9 @@ const hasEditedMessageChanges = (
       return true;
     }
 
-    return file.id !== originalFile.id || file.name !== originalFile.originalName;
+    return (
+      file.id !== originalFile.id || file.name !== originalFile.originalName
+    );
   });
 };
 
@@ -92,7 +93,6 @@ const TextChannel = memo(
     } = useMessages(channelId);
     const messageJumpTarget = useMessageJumpTarget();
     const claudeCodePanelOpen = useClaudeCodePanelOpen();
-    const claudeCodeHistoryOpen = useClaudeCodeHistoryOpen();
     const isJumpingToChannel = messageJumpTarget?.channelId === channelId;
     const activeClaudeCodeTaskMessageId = useMemo(
       () =>
@@ -126,10 +126,12 @@ const TextChannel = memo(
 
     useScrollToJumpTarget(channelId, scrollToMessage);
 
-    const autoOpenedClaudeCodeTaskMessageIdRef = useRef<number | undefined>();
-    const previousActiveClaudeCodeTaskMessageIdRef = useRef<
-      number | undefined
-    >();
+    const autoOpenedClaudeCodeTaskMessageIdRef = useRef<number | undefined>(
+      undefined
+    );
+    const previousActiveClaudeCodeTaskMessageIdRef = useRef<number | undefined>(
+      undefined
+    );
 
     useEffect(() => {
       if (activeClaudeCodeTaskMessageId === undefined) return;
@@ -383,14 +385,6 @@ const TextChannel = memo(
                 }
               />
             ))}
-            {claudeCodeHistoryOpen && (
-              <div className="min-w-0 max-w-dvw pt-2 pr-2">
-                <div
-                  data-claude-code-history-panel-host="true"
-                  className="w-full max-w-full"
-                />
-              </div>
-            )}
             {showClaudeCodeVirtualPanelBubble && (
               <div
                 className="flex min-w-0 max-w-dvw flex-col gap-1.5 pl-2 pt-2 pr-2"
@@ -402,9 +396,7 @@ const TextChannel = memo(
                   </div>
                   <div className="flex min-w-0 w-full flex-col pt-0">
                     <div className="flex min-h-6 items-start gap-2 pl-1 leading-none select-none">
-                      <span className="font-bold leading-none">
-                        ClaudeCode
-                      </span>
+                      <span className="font-bold leading-none">ClaudeCode</span>
                       <span className="pt-0.5 text-primary/60 text-xs leading-none">
                         临时终端
                       </span>

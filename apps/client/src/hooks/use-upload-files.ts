@@ -2,6 +2,7 @@ import { useChannelById } from '@/features/server/channels/hooks';
 import { useCan, usePublicServerSettings } from '@/features/server/hooks';
 import { getFileNameWithLockedExtension } from '@/helpers/file-name';
 import { uploadFile, type TUploadProgress } from '@/helpers/upload-file';
+import { getTRPCClient } from '@/lib/trpc';
 import { Permission, type TFile, type TTempFile } from '@mikotord/shared';
 import {
   useCallback,
@@ -100,6 +101,46 @@ const useUploadFiles = (
         };
       })
     );
+  }, []);
+
+  const replaceFile = useCallback(async (id: string, replacement: File) => {
+    const result = await uploadFile(replacement);
+
+    if (!result) {
+      return undefined;
+    }
+
+    const trpc = getTRPCClient();
+
+    trpc.files.deleteTemporary.mutate({ fileId: id }).catch(() => {
+      // ignore cleanup errors; the temporary file TTL is a fallback.
+    });
+
+    const previousPreviewUrl = previewUrlsRef.current[id];
+
+    if (previousPreviewUrl) {
+      URL.revokeObjectURL(previousPreviewUrl);
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(replacement);
+
+    setPreviewUrls((prev) => {
+      const next = { ...prev };
+
+      delete next[id];
+      next[result.id] = nextPreviewUrl;
+
+      return next;
+    });
+
+    setFiles((prevFiles) =>
+      prevFiles.map((file) => (file.id === id ? result : file))
+    );
+    setDisplayOrder((prev) =>
+      prev.map((orderId) => (orderId === id ? result.id : orderId))
+    );
+
+    return result;
   }, []);
 
   const clearFiles = useCallback(() => {
@@ -449,6 +490,7 @@ const useUploadFiles = (
       displayItems,
       removeFile,
       renameFile,
+      replaceFile,
       clearFiles,
       uploading,
       uploadingSize,
@@ -461,6 +503,7 @@ const useUploadFiles = (
       displayItems,
       removeFile,
       renameFile,
+      replaceFile,
       clearFiles,
       uploading,
       uploadingSize,

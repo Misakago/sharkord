@@ -16,9 +16,10 @@ import { getSessionStorageItem, SessionStorageKey } from '@/helpers/storage';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import type { TClaudeCodeStatus } from '@mikotord/shared';
+import { IconButton } from '@mikotord/ui';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import { Trash2 } from 'lucide-react';
+import { History, Trash2, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -68,6 +69,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const [mascotRect, setMascotRect] = useState(DEFAULT_MASCOT_RECT);
+  const [historyPanelBottom, setHistoryPanelBottom] = useState(0);
   const terminalContainerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -82,12 +84,6 @@ const ClaudeCodeFloatingPanel = memo(() => {
     selectedDmChannelId === claudeCodeDmChannelId;
   const resolvePanelHost = useCallback(
     () => {
-      if (historyOpen) {
-        return document.querySelector<HTMLElement>(
-          '[data-claude-code-history-panel-host="true"]'
-        );
-      }
-
       return document.querySelector<HTMLElement>(
         [
           '[data-claude-code-active-panel-host="true"]',
@@ -95,19 +91,43 @@ const ClaudeCodeFloatingPanel = memo(() => {
         ].join(',')
       );
     },
-    [historyOpen]
+    []
   );
-  const scrollToPanelHost = useCallback(() => {
+  const scrollToPanelHost = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const host = resolvePanelHost();
 
     if (!host) return;
 
     setPanelHost(host);
     host.scrollIntoView({
-      behavior: 'smooth',
+      behavior,
       block: 'nearest'
     });
   }, [resolvePanelHost]);
+
+  const updateHistoryPanelBottom = useCallback(() => {
+    const composeContainers = Array.from(
+      document.querySelectorAll<HTMLElement>('.compose-container')
+    );
+    const composeBounds = composeContainers
+      .map((container) => container.getBoundingClientRect())
+      .filter(
+        (bounds) =>
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          bounds.bottom > 0 &&
+          bounds.top < window.innerHeight
+      );
+
+    if (composeBounds.length === 0) {
+      setHistoryPanelBottom(0);
+      return;
+    }
+
+    const inputTop = Math.min(...composeBounds.map((bounds) => bounds.top));
+
+    setHistoryPanelBottom(Math.max(0, window.innerHeight - inputTop));
+  }, []);
 
   const sendResize = useCallback(() => {
     const terminal = terminalRef.current;
@@ -316,6 +336,27 @@ const ClaudeCodeFloatingPanel = memo(() => {
   }, [isClaudeCodeConversation, selectedDmChannelId]);
 
   useEffect(() => {
+    if (!isClaudeCodeConversation || !historyOpen) {
+      setHistoryPanelBottom(0);
+      return;
+    }
+
+    const composeContainers = Array.from(
+      document.querySelectorAll<HTMLElement>('.compose-container')
+    );
+    const resizeObserver = new ResizeObserver(updateHistoryPanelBottom);
+
+    composeContainers.forEach((container) => resizeObserver.observe(container));
+    updateHistoryPanelBottom();
+    window.addEventListener('resize', updateHistoryPanelBottom);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateHistoryPanelBottom);
+    };
+  }, [historyOpen, isClaudeCodeConversation, updateHistoryPanelBottom]);
+
+  useEffect(() => {
     if (!isClaudeCodeConversation) {
       wsRef.current?.close();
       wsRef.current = null;
@@ -420,18 +461,17 @@ const ClaudeCodeFloatingPanel = memo(() => {
             chatSessionId
           });
 
-        closeClaudeCodeHistoryPanel();
-        closeClaudeCodePanel();
+        await refreshHistory();
         toast.success(
           result.rebound
-            ? '已切换历史会话，并自动重建 Claude 绑定'
-            : '已切换 ClaudeCode 历史会话'
+            ? '已切换聊天室会话，并静默重建 Claude 绑定'
+            : '已切换聊天室会话'
         );
       } catch {
         toast.error('恢复 ClaudeCode 历史会话失败');
       }
     },
-    []
+    [refreshHistory]
   );
 
   const deleteHistory = useCallback(
@@ -503,110 +543,123 @@ const ClaudeCodeFloatingPanel = memo(() => {
         />
       </button>
 
+      {historyOpen &&
+        createPortal(
+          <aside
+            className="fixed right-0 z-50 flex w-[min(384px,calc(100vw-3rem))] flex-col border-l border-border bg-card text-foreground"
+            style={{ top: 48, bottom: historyPanelBottom }}
+          >
+            <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">历史会话</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="px-2 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={refreshHistory}
+                >
+                  刷新
+                </button>
+                <IconButton
+                  onClick={closeClaudeCodeHistoryPanel}
+                  icon={X}
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-none hover:bg-accent"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {historyLoading && (
+                <div className="px-3 py-4 text-sm text-muted-foreground">
+                  加载中...
+                </div>
+              )}
+              {!historyLoading && historyItems.length === 0 && (
+                <div className="px-3 py-4 text-sm text-muted-foreground">
+                  暂无历史会话
+                </div>
+              )}
+              {!historyLoading &&
+                historyItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'mb-2 flex w-full gap-2 rounded-none border border-border bg-background/60 px-3 py-3 hover:bg-accent',
+                      item.current && 'border-emerald-400/70 bg-emerald-400/10'
+                    )}
+                  >
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => resumeHistory(item.id)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold">
+                          {new Date(item.updatedAt).toLocaleString()}
+                        </span>
+                        {item.current && (
+                          <span className="shrink-0 text-xs text-emerald-300">
+                            当前
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                        {item.id}
+                      </div>
+                      {!item.available && (
+                        <div className="mt-2 text-xs text-amber-300">
+                          Claude 绑定失效，切换时会自动重建
+                        </div>
+                      )}
+                    </button>
+                    <div className="flex shrink-0 items-start pt-0.5">
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex h-8 w-8 items-center justify-center rounded-none text-muted-foreground hover:bg-destructive/20 hover:text-destructive',
+                          item.current && 'cursor-not-allowed opacity-35 hover:bg-transparent hover:text-muted-foreground'
+                        )}
+                        title={
+                          item.current
+                            ? '正在使用的会话不能删除，请先切换到其他会话'
+                            : '删除历史会话'
+                        }
+                        disabled={item.current}
+                        onClick={() => deleteHistory(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </aside>,
+          document.body
+        )}
+
       {panelHost &&
-        (open || historyOpen) &&
+        open &&
         createPortal(
           <div
             className={cn(
-              'aspect-[2/1] w-[min(720px,calc(100vw-8rem))] max-w-full origin-top transition-all duration-300 ease-out',
-              open || historyOpen
+              'transition-all duration-300 ease-out',
+              'origin-top aspect-[2/1] w-[min(720px,calc(100vw-8rem))] max-w-full',
+              open
                 ? 'scale-100 opacity-100'
                 : 'scale-95 opacity-0 pointer-events-none'
             )}
           >
             <section
-              className={cn(
-                'h-full w-full overflow-hidden rounded-md border border-border/90 bg-black/88 shadow-2xl ring-1 ring-white/10 backdrop-blur-md',
-                historyOpen ? 'pointer-events-auto' : 'pointer-events-none'
-              )}
+              className="pointer-events-none h-full w-full overflow-hidden rounded-md border border-border/90 bg-black/88 shadow-2xl ring-1 ring-white/10 backdrop-blur-md"
             >
-          {historyOpen ? (
-            <div className="flex h-full flex-col bg-card/95 text-foreground">
-              <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
-                <div className="min-w-0">
-                  <div className="font-bold">历史会话</div>
-                </div>
-                <button
-                  type="button"
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                  onClick={refreshHistory}
-                >
-                  刷新
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2">
-                {historyLoading && (
-                  <div className="px-3 py-4 text-sm text-muted-foreground">
-                    加载中...
-                  </div>
-                )}
-                {!historyLoading && historyItems.length === 0 && (
-                  <div className="px-3 py-4 text-sm text-muted-foreground">
-                    暂无历史会话
-                  </div>
-                )}
-                {!historyLoading &&
-                  historyItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        'mb-2 flex w-full gap-2 rounded-none border border-border bg-background/60 px-3 py-3 transition-colors hover:bg-accent',
-                        item.current && 'border-emerald-400/70 bg-emerald-400/10'
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => resumeHistory(item.id)}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate text-sm font-semibold">
-                            {new Date(item.updatedAt).toLocaleString()}
-                          </span>
-                          {item.current && (
-                            <span className="shrink-0 text-xs text-emerald-300">
-                              当前
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                          {item.id}
-                        </div>
-                        {!item.available && (
-                          <div className="mt-2 text-xs text-amber-300">
-                            Claude 绑定失效，切换时会自动重建
-                          </div>
-                        )}
-                      </button>
-                      <div className="flex shrink-0 items-start pt-0.5">
-                        <button
-                          type="button"
-                          className={cn(
-                            'flex h-8 w-8 items-center justify-center rounded-none text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive',
-                            item.current && 'cursor-not-allowed opacity-35 hover:bg-transparent hover:text-muted-foreground'
-                          )}
-                          title={
-                            item.current
-                              ? '正在使用的会话不能删除，请先切换到其他会话'
-                              : '删除历史会话'
-                          }
-                          disabled={item.current}
-                          onClick={() => deleteHistory(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          ) : (
             <div
               ref={terminalContainerRef}
               className="pointer-events-auto h-full bg-black p-2"
               onMouseDown={() => terminalRef.current?.focus()}
             />
-          )}
             </section>
           </div>,
           panelHost

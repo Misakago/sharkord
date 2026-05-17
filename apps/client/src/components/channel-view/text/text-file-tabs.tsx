@@ -1,3 +1,4 @@
+import { usePublicServerSettings } from '@/features/server/hooks';
 import {
   getFileNameWithLockedExtension,
   splitFileNameForLockedExtension
@@ -36,10 +37,12 @@ import {
   useState
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isOfficePreviewableFile } from './office-document-helpers';
+import { OfficeDocumentPreview } from './office-document-preview';
 import { TextFilePreview } from './text-file-preview';
 import {
-  MAX_TEXT_PREVIEW_BYTES,
-  isTextPreviewableFile
+  isTextPreviewableFile,
+  MAX_TEXT_PREVIEW_BYTES
 } from './text-file-preview-helpers';
 
 type TTextFileTabsProps = {
@@ -66,6 +69,7 @@ type TAttachmentFile = {
   sourceFile?: File;
   progress?: number;
   onRename?: (name: string) => void;
+  onReplace?: (file: globalThis.File) => Promise<unknown>;
   onRemove?: () => void;
 };
 
@@ -73,7 +77,7 @@ type TPreviewState =
   | { status: 'idle' | 'loading' | 'error' | 'too-large'; content?: undefined }
   | { status: 'ready'; content: string };
 
-type TAttachmentKind = 'text' | 'image' | 'other';
+type TAttachmentKind = 'text' | 'image' | 'office' | 'other';
 
 type TAttachmentTab =
   | {
@@ -89,6 +93,11 @@ type TAttachmentTab =
     }
   | {
       id: string;
+      kind: 'office';
+      file: TAttachmentFile;
+    }
+  | {
+      id: string;
       kind: 'imageGallery';
       files: TAttachmentFile[];
     }
@@ -100,7 +109,10 @@ type TAttachmentTab =
 
 const idlePreviewState: TPreviewState = { status: 'idle' };
 
-const getAttachmentKind = (file: TAttachmentFile): TAttachmentKind => {
+const getAttachmentKind = (
+  file: TAttachmentFile,
+  officeServerUrl?: string
+): TAttachmentKind => {
   if (getFileCategory(file.extension) === FileCategory.IMAGE) {
     return 'image';
   }
@@ -113,6 +125,15 @@ const getAttachmentKind = (file: TAttachmentFile): TAttachmentKind => {
     })
   ) {
     return 'text';
+  }
+
+  if (
+    officeServerUrl &&
+    isOfficePreviewableFile({
+      extension: file.extension
+    })
+  ) {
+    return 'office';
   }
 
   return 'other';
@@ -157,14 +178,23 @@ const ImagePreview = memo(
   )
 );
 
-const FileIcon = memo(({ file }: { file: TAttachmentFile }) => {
-  const kind = getAttachmentKind(file);
+const FileIcon = memo(
+  ({
+    file,
+    officeServerUrl
+  }: {
+    file: TAttachmentFile;
+    officeServerUrl?: string;
+  }) => {
+    const kind = getAttachmentKind(file, officeServerUrl);
 
-  if (kind === 'image') return <FileImage className="h-5 w-5" />;
-  if (kind === 'text') return <FileText className="h-5 w-5" />;
+    if (kind === 'image') return <FileImage className="h-5 w-5" />;
+    if (kind === 'text' || kind === 'office')
+      return <FileText className="h-5 w-5" />;
 
-  return <File className="h-5 w-5" />;
-});
+    return <File className="h-5 w-5" />;
+  }
+);
 
 const TextFileTabs = memo(
   ({
@@ -176,12 +206,14 @@ const TextFileTabs = memo(
     contentTab
   }: TTextFileTabsProps) => {
     const { t } = useTranslation('common');
+    const publicSettings = usePublicServerSettings();
+    const officeServerUrl = publicSettings?.officeServerUrl?.trim() ?? '';
     const initialGalleryTabIndex = (() => {
       let textFileCount = 0;
       let hasImageFile = false;
 
       for (const file of files) {
-        const kind = getAttachmentKind(file);
+        const kind = getAttachmentKind(file, officeServerUrl);
 
         if (kind === 'text') {
           textFileCount++;
@@ -220,14 +252,17 @@ const TextFileTabs = memo(
     >({});
     const tabs = useMemo<TAttachmentTab[]>(() => {
       const textFiles: TAttachmentFile[] = [];
+      const officeFiles: TAttachmentFile[] = [];
       const imageFiles: TAttachmentFile[] = [];
       const otherFiles: TAttachmentFile[] = [];
 
       for (const file of files) {
-        const kind = getAttachmentKind(file);
+        const kind = getAttachmentKind(file, officeServerUrl);
 
         if (kind === 'text') {
           textFiles.push(file);
+        } else if (kind === 'office') {
+          officeFiles.push(file);
         } else if (kind === 'image') {
           imageFiles.push(file);
         } else {
@@ -251,6 +286,11 @@ const TextFileTabs = memo(
           kind: 'text' as const,
           file
         })),
+        ...officeFiles.map((file) => ({
+          id: `office-${file.key}`,
+          kind: 'office' as const,
+          file
+        })),
         ...(imageFiles.length
           ? [
               {
@@ -270,7 +310,7 @@ const TextFileTabs = memo(
             ]
           : [])
       ];
-    }, [contentTab, files]);
+    }, [contentTab, files, officeServerUrl]);
     const activeTab = activeIndex === null ? undefined : tabs[activeIndex];
     const activeFile = getTabFile(activeTab);
     const activeImageGalleryTab =
@@ -382,7 +422,10 @@ const TextFileTabs = memo(
     useEffect(() => {
       const imageGalleryTab = tabs.find((tab) => tab.kind === 'imageGallery');
 
-      if (!imageGalleryTab || galleryActiveIndex < imageGalleryTab.files.length) {
+      if (
+        !imageGalleryTab ||
+        galleryActiveIndex < imageGalleryTab.files.length
+      ) {
         return;
       }
 
@@ -540,13 +583,12 @@ const TextFileTabs = memo(
     useEffect(() => {
       if (!activeFileId || disableInlinePreview) return;
 
-      const index = tabs.findIndex(
-        (tab) =>
-          tab.kind === 'imageGallery'
-            ? tab.files.some((file) => file.id === activeFileId)
-            : tab.kind !== 'other' &&
-              tab.kind !== 'content' &&
-              tab.file.id === activeFileId
+      const index = tabs.findIndex((tab) =>
+        tab.kind === 'imageGallery'
+          ? tab.files.some((file) => file.id === activeFileId)
+          : tab.kind !== 'other' &&
+            tab.kind !== 'content' &&
+            tab.file.id === activeFileId
       );
 
       if (index < 0) return;
@@ -694,24 +736,21 @@ const TextFileTabs = memo(
       }
     }, [activeFile, removableFiles]);
 
-    const removeTabFiles = useCallback(
-      (tab: TAttachmentTab) => {
-        if (tab.kind === 'content') {
-          return;
+    const removeTabFiles = useCallback((tab: TAttachmentTab) => {
+      if (tab.kind === 'content') {
+        return;
+      }
+
+      if (tab.kind === 'other' || tab.kind === 'imageGallery') {
+        for (const file of tab.files) {
+          file.onRemove?.();
         }
 
-        if (tab.kind === 'other' || tab.kind === 'imageGallery') {
-          for (const file of tab.files) {
-            file.onRemove?.();
-          }
+        return;
+      }
 
-          return;
-        }
-
-        tab.file.onRemove?.();
-      },
-      []
-    );
+      tab.file.onRemove?.();
+    }, []);
 
     const startRenaming = useCallback((file: TAttachmentFile) => {
       skipRenameCommitRef.current = false;
@@ -790,6 +829,17 @@ const TextFileTabs = memo(
         );
       }
 
+      if (tab.kind === 'office') {
+        return (
+          <OfficeDocumentPreview
+            file={tab.file}
+            officeServerUrl={officeServerUrl}
+            fullHeight={fullHeight}
+            onReplace={tab.file.onReplace}
+          />
+        );
+      }
+
       if (tab.kind === 'imageGallery') {
         const activeImage =
           tab.files[galleryActiveIndex] ?? tab.files[0] ?? null;
@@ -852,9 +902,7 @@ const TextFileTabs = memo(
                   key={file.key}
                   className={cn(
                     'group/gallery-card relative max-w-full overflow-hidden rounded-md border border-border bg-background',
-                    tab.files.length === 1
-                      ? 'w-fit max-w-full'
-                      : 'w-full',
+                    tab.files.length === 1 ? 'w-fit max-w-full' : 'w-full',
                     galleryActiveIndex === index && 'ring-1 ring-ring'
                   )}
                   style={
@@ -1026,7 +1074,7 @@ const TextFileTabs = memo(
                 className="group/file flex w-fit max-w-full items-center gap-3 rounded-md border border-border bg-background p-3"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <FileIcon file={file} />
+                  <FileIcon file={file} officeServerUrl={officeServerUrl} />
                 </div>
                 <div className="flex min-w-0 max-w-[30ch] flex-col overflow-hidden">
                   {renamingKey === file.key ? (
@@ -1091,33 +1139,33 @@ const TextFileTabs = memo(
                       <TextCursorInput className="h-4 w-4" />
                     </Button>
                   )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    title={t('downloadFile')}
+                    disabled={downloadingFileId === file.key}
+                    onClick={() => void downloadFile(file)}
+                  >
+                    {downloadingFileId === file.key ? (
+                      <Loader2 className="h-4 w-4" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </Button>
+                  {context !== 'compose' && file.onRemove && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 shrink-0"
-                      title={t('downloadFile')}
-                      disabled={downloadingFileId === file.key}
-                      onClick={() => void downloadFile(file)}
+                      title={t('deleteFileTitle')}
+                      onClick={file.onRemove}
                     >
-                      {downloadingFileId === file.key ? (
-                        <Loader2 className="h-4 w-4" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
+                      <X className="h-4 w-4" />
                     </Button>
-                    {context !== 'compose' && file.onRemove && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        title={t('deleteFileTitle')}
-                        onClick={file.onRemove}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
+                  )}
                 </>
               </div>
             ))}
@@ -1178,13 +1226,16 @@ const TextFileTabs = memo(
           ? t('photoCount', { count: tab.files.length })
           : tab.kind === 'content'
             ? tab.label
-          : tab.file.originalName;
+            : tab.file.originalName;
 
     const getTabIcon = (tab: TAttachmentTab) => {
       if (tab.kind === 'image' || tab.kind === 'imageGallery')
         return <FileImage className="h-4 w-4 shrink-0" />;
       if (tab.kind === 'other') return <File className="h-4 w-4 shrink-0" />;
-      if (tab.kind === 'content') return <FileText className="h-4 w-4 shrink-0" />;
+      if (tab.kind === 'content')
+        return <FileText className="h-4 w-4 shrink-0" />;
+      if (tab.kind === 'office')
+        return <FileText className="h-4 w-4 shrink-0" />;
 
       return <FileText className="h-4 w-4 shrink-0" />;
     };
@@ -1255,9 +1306,7 @@ const TextFileTabs = memo(
       const previewOpen = !inlineCollapsed || !showCollapse;
       const showInlineActions = showCollapse;
       const showExpandedActions =
-        showInlineActions &&
-        !disableInlinePreview &&
-        !inlineCollapsed;
+        showInlineActions && !disableInlinePreview && !inlineCollapsed;
       const isFullscreenBar = !showCollapse;
       const isCompose = context === 'compose';
       const showRemoveAction =
@@ -1265,12 +1314,12 @@ const TextFileTabs = memo(
         removableFiles.length > 0 &&
         !isCompose &&
         !inlineCollapsed;
-      const showDownloadAction = showExpandedActions && !isCompose && !!activeFile;
+      const showDownloadAction =
+        showExpandedActions && !isCompose && !!activeFile;
       const showRenameAction =
-        !isFullscreenBar && !renamingKey && !!activeFile?.onRename && previewOpen;
+        showInlineActions && !renamingKey && !!activeFile?.onRename && previewOpen;
       const showFullscreenAction =
-        showFullscreen &&
-        (disableInlinePreview || !inlineCollapsed);
+        showFullscreen && (disableInlinePreview || !inlineCollapsed);
 
       return (
         <div
@@ -1283,9 +1332,7 @@ const TextFileTabs = memo(
           <div
             className={cn(
               'flex min-w-0 overflow-x-auto',
-              fillWidth
-                ? 'flex-1'
-                : 'max-w-[min(42rem,calc(100vw-8rem))]'
+              fillWidth ? 'flex-1' : 'max-w-[min(42rem,calc(100vw-8rem))]'
             )}
           >
             {tabs.map((tab, index) => {
@@ -1301,9 +1348,7 @@ const TextFileTabs = memo(
                         ? [tab.file]
                         : [];
               const showTabRemoveAction =
-                isCompose &&
-                showRemove &&
-                removableTabFiles.length > 0;
+                isCompose && showRemove && removableTabFiles.length > 0;
 
               return (
                 <div
@@ -1364,7 +1409,7 @@ const TextFileTabs = memo(
                         removeTabFiles(tab);
                       }}
                     >
-                    <X className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </div>
@@ -1476,6 +1521,8 @@ const TextFileTabs = memo(
       activeTab?.kind === 'imageGallery'
         ? (activeTab.files[galleryActiveIndex] ?? activeTab.files[0])
         : activeFile;
+    const isFullscreenImageTab =
+      activeTab?.kind === 'image' || activeTab?.kind === 'imageGallery';
     const inlinePreviewClass = (() => {
       if (!inlinePreviewVisible || !activeTab) return 'w-fit';
 
@@ -1487,6 +1534,10 @@ const TextFileTabs = memo(
 
       if (activeTab.kind === 'text') {
         return 'w-[min(36rem,100%)]';
+      }
+
+      if (activeTab.kind === 'office') {
+        return 'w-[min(42rem,100%)]';
       }
 
       if (activeTab.kind === 'content') {
@@ -1513,7 +1564,9 @@ const TextFileTabs = memo(
               key={activeTab.id}
               className={cn(
                 'min-h-0 max-w-full',
-                (activeTab.kind === 'text' || activeTab.kind === 'content') &&
+                (activeTab.kind === 'text' ||
+                  activeTab.kind === 'office' ||
+                  activeTab.kind === 'content') &&
                   'w-full',
                 activeTab.kind === 'imageGallery' &&
                   (galleryFitsSingleRow
@@ -1537,34 +1590,29 @@ const TextFileTabs = memo(
             </DialogHeader>
             <div className="flex h-12 shrink-0 items-center border-b border-border bg-background">
               <div className="min-w-0 flex-1">
-                {renamingKey &&
-                fullscreenActiveFile &&
-                renamingKey === fullscreenActiveFile.key ? (
-                  <div className="flex h-12 min-w-0 items-center px-3">
-                    {renderTabName(fullscreenActiveFile)}
-                  </div>
-                ) : (
-                  tabBar({
-                    compact: true,
-                    showCollapse: false,
-                    showFullscreen: false,
-                    showRemove: true
-                  })
-                )}
+                {tabBar({
+                  compact: true,
+                  showCollapse: false,
+                  showFullscreen: false,
+                  showRemove: true
+                })}
               </div>
               <div className="flex shrink-0 items-center gap-1 px-2">
-                {fullscreenActiveFile?.onRename && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 bg-background hover:bg-background focus-visible:bg-background active:bg-background data-[state=open]:bg-background"
-                    title={t('renameFile')}
-                    onClick={() => startRenaming(fullscreenActiveFile)}
-                  >
-                    <TextCursorInput className="h-4 w-4" />
-                  </Button>
-                )}
+                {context !== 'compose' &&
+                  fullscreenActiveFile &&
+                  fullscreenActiveFile.onRename &&
+                  !renamingKey && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 bg-background hover:bg-background focus-visible:bg-background active:bg-background data-[state=open]:bg-background"
+                      title={t('renameFile')}
+                      onClick={() => startRenaming(fullscreenActiveFile)}
+                    >
+                      <TextCursorInput className="h-4 w-4" />
+                    </Button>
+                  )}
                 {context !== 'compose' && fullscreenActiveFile && (
                   <Button
                     type="button"

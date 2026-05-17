@@ -357,6 +357,22 @@ const Storage = memo(() => {
 
         <Separator />
 
+        <Group
+          label={t('officeServerUrlLabel')}
+          description={t('officeServerUrlDesc')}
+        >
+          <Input
+            className="max-w-150"
+            placeholder={t('officeServerUrlPlaceholder')}
+            value={values.officeServerUrl ?? ''}
+            onChange={(event) =>
+              onChange('officeServerUrl', event.target.value)
+            }
+          />
+        </Group>
+
+        <Separator />
+
         <Group label={t('signedUrlsLabel')} description={t('signedUrlsDesc')}>
           <Switch
             checked={!!values.storageSignedUrlsEnabled}

@@ -89,6 +89,7 @@ export type TStorageSettings = Pick<
   | 'storageSignedUrlsTtlSeconds'
   | 'storageImageOptimizationEnabled'
   | 'storageImageOptimizationQuality'
+  | 'officeServerUrl'
 >;
 
 // joined types
