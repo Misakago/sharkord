@@ -14,8 +14,9 @@ import { cn } from '@/lib/utils';
 import {
   DELETED_USER_IDENTITY_AND_NAME,
   type TDirectMessageConversation
-} from '@sharkord/shared';
-import { Spinner } from '@sharkord/ui';
+} from '@mikotord/shared';
+import { IconButton, Input } from '@mikotord/ui';
+import { Search, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -40,12 +41,12 @@ const DirectMessageItem = memo(
       <button
         type="button"
         className={cn(
-          'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+          'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           selected && 'bg-accent text-accent-foreground'
         )}
         onClick={onSelect}
       >
-        <UserAvatar userId={user.id} className="h-6 w-6" showUserPopover />
+        <UserAvatar userId={user.id} className="h-8 w-8" showUserPopover />
         <span className="truncate flex-1 text-left">{user.name}</span>
         <UnreadCount count={unreadCount} />
       </button>
@@ -60,6 +61,8 @@ const DirectMessages = memo(() => {
     TDirectMessageConversation[]
   >([]);
   const [query, setQuery] = useState('');
+  const [startDmQuery, setStartDmQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const users = useUsers();
   const channels = useChannels();
   const ownUserId = useOwnUserId();
@@ -98,6 +101,7 @@ const DirectMessages = memo(() => {
 
   const usersToStartDm = useMemo(() => {
     const directMessageUserIds = new Set(conversations.map((dm) => dm.userId));
+    const normalizedQuery = startDmQuery.trim().toLowerCase();
 
     return users.filter(
       (user) =>
@@ -105,9 +109,37 @@ const DirectMessages = memo(() => {
         !user.banned &&
         user.name !== DELETED_USER_IDENTITY_AND_NAME &&
         !directMessageUserIds.has(user.id) &&
-        user.name.toLowerCase().includes(query.trim().toLowerCase())
+        user.name.toLowerCase().includes(normalizedQuery)
+    );
+  }, [conversations, ownUserId, startDmQuery, users]);
+
+  const usersMatchingSearch = useMemo(() => {
+    const directMessageUserIds = new Set(conversations.map((dm) => dm.userId));
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) return [];
+
+    return users.filter(
+      (user) =>
+        user.id !== ownUserId &&
+        !user.banned &&
+        user.name !== DELETED_USER_IDENTITY_AND_NAME &&
+        !directMessageUserIds.has(user.id) &&
+        user.name.toLowerCase().includes(normalizedQuery)
     );
   }, [conversations, ownUserId, query, users]);
+
+  const filteredConversations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!searchOpen || !normalizedQuery) return conversations;
+
+    return conversations.filter((dm) => {
+      const user = users.find((item) => item.id === dm.userId);
+
+      return user?.name.toLowerCase().includes(normalizedQuery);
+    });
+  }, [conversations, query, searchOpen, users]);
 
   const onStartDm = useCallback(
     async (userId: number) => {
@@ -125,41 +157,88 @@ const DirectMessages = memo(() => {
     [fetchConversations, t]
   );
 
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setQuery('');
+  }, []);
+
   return (
-    <div className="flex-1 overflow-y-auto p-2">
+    <div className="h-full overflow-y-auto p-2">
       <div className="mb-1 flex items-center justify-between px-2 py-1">
-        <span className="text-xs font-semibold text-muted-foreground">
-          {t('directMessages')}
-        </span>
+        <IconButton
+          variant="ghost"
+          size="sm"
+          icon={searchOpen ? X : Search}
+          title={searchOpen ? t('close') : t('searchDirectMessages')}
+          onClick={() => {
+            if (searchOpen) {
+              closeSearch();
+            } else {
+              setSearchOpen(true);
+            }
+          }}
+        />
         <SearchUserDropdown
-          query={query}
-          setQuery={setQuery}
+          query={startDmQuery}
+          setQuery={setStartDmQuery}
           usersToStartDm={usersToStartDm}
           onStartDm={onStartDm}
         />
       </div>
 
-      {loading ? (
-        <div className="flex h-24 items-center justify-center">
-          <Spinner size="sm" />
-        </div>
-      ) : (
-        <div className="space-y-0.5">
-          {conversations.map((dm) => (
-            <DirectMessageItem
-              key={dm.channelId}
-              dm={dm}
-              selected={selectedDmChannelId === dm.channelId}
-              onSelect={() => setSelectedDmChannelId(dm.channelId)}
-            />
-          ))}
-          {conversations.length === 0 && (
-            <div className="px-2 py-4 text-xs text-muted-foreground">
-              {t('noDMsYet')}
-            </div>
-          )}
+      {searchOpen && (
+        <div className="mb-2 px-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('searchDirectMessages')}
+            autoFocus
+          />
         </div>
       )}
+
+      <div className="space-y-0.5">
+        {filteredConversations.map((dm) => (
+          <DirectMessageItem
+            key={dm.channelId}
+            dm={dm}
+            selected={selectedDmChannelId === dm.channelId}
+            onSelect={() => {
+              setSelectedDmChannelId(dm.channelId);
+              closeSearch();
+            }}
+          />
+        ))}
+        {searchOpen &&
+          query.trim().length > 0 &&
+          usersMatchingSearch.map((user) => (
+            <button
+              type="button"
+              key={user.id}
+              className="flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                void onStartDm(user.id);
+                closeSearch();
+              }}
+            >
+              <UserAvatar userId={user.id} className="h-8 w-8" showUserPopover />
+              <span className="truncate flex-1 text-left">{user.name}</span>
+            </button>
+          ))}
+        {conversations.length === 0 && !loading && !searchOpen && (
+          <div className="px-2 py-4 text-xs text-muted-foreground">
+            {t('noDMsYet')}
+          </div>
+        )}
+        {searchOpen &&
+          query.trim().length > 0 &&
+          filteredConversations.length === 0 &&
+          usersMatchingSearch.length === 0 && (
+            <div className="px-2 py-4 text-xs text-muted-foreground">
+              {t('noUsersAvailable')}
+            </div>
+          )}
+      </div>
     </div>
   );
 });

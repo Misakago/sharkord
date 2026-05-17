@@ -7,7 +7,7 @@ import {
   ServerEvents,
   UserStatus,
   type TConnectionParams
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { TRPCError } from '@trpc/server';
 import {
   applyWSSHandler,
@@ -16,6 +16,10 @@ import {
 import { eq } from 'drizzle-orm';
 import http from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
+import {
+  CLAUDE_CODE_PTY_PATH,
+  createClaudeCodePtyWebSocketServer
+} from '../agents/claude-code';
 import { db } from '../db';
 import { getAllChannelUserPermissions } from '../db/queries/channels';
 import { isUserDmParticipant } from '../db/queries/dms';
@@ -26,7 +30,6 @@ import { logger } from '../logger';
 import { enqueueActivityLog } from '../queues/activity-log';
 import { appRouter } from '../routers';
 import { getUserRoles } from '../routers/users/get-user-roles';
-import { VoiceRuntime } from '../runtimes/voice';
 import { invariant } from './invariant';
 import { pubsub } from './pubsub';
 import type { Context } from './trpc';
@@ -230,7 +233,6 @@ const createContext = async ({
     authenticated: false,
     userId: decodedUser.id,
     handshakeHash: '',
-    currentVoiceChannelId: undefined,
     hasPermission,
     needsPermission,
     hasChannelPermission,
@@ -247,7 +249,17 @@ const createContext = async ({
 
 const createWsServer = async (server: http.Server) => {
   return new Promise<WebSocketServer>((resolve) => {
-    wss = new WebSocketServer({ server });
+    wss = new WebSocketServer({ noServer: true });
+    const claudeCodeWss = createClaudeCodePtyWebSocketServer();
+
+    server.on('upgrade', (req, socket, head) => {
+      const url = new URL(req.url ?? '/', `http://${req.headers.host || 'localhost'}`);
+      const targetWss = url.pathname === CLAUDE_CODE_PTY_PATH ? claudeCodeWss : wss!;
+
+      targetWss.handleUpgrade(req, socket, head, (ws) => {
+        targetWss.emit('connection', ws, req);
+      });
+    });
 
     wss.on('connection', (ws) => {
       try {
@@ -292,17 +304,6 @@ const createWsServer = async (server: http.Server) => {
             const user = await getUserById(userId);
 
             if (!user) return;
-
-            const voiceRuntime = VoiceRuntime.findRuntimeByUserId(user.id);
-
-            if (voiceRuntime) {
-              voiceRuntime.removeUser(user.id);
-
-              pubsub.publish(ServerEvents.USER_LEAVE_VOICE, {
-                channelId: voiceRuntime.id,
-                userId: user.id
-              });
-            }
 
             usersIpMap.delete(user.id);
             pubsub.publish(ServerEvents.USER_LEAVE, user.id);

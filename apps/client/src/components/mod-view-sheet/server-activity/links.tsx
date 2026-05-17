@@ -1,5 +1,5 @@
 import { PaginatedList } from '@/components/paginated-list';
-import { Button } from '@sharkord/ui';
+import { Button } from '@mikotord/ui';
 import { ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +31,7 @@ const LinkCard = memo(({ url, onOpen }: TLinkCardProps) => {
   }, [url, t]);
 
   return (
-    <div className="py-2 px-1 border-b border-border last:border-0 bg-secondary/50 rounded-md">
+    <div className="py-2 px-1 border-b border-border last:border-0 bg-accent rounded-md">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <LinkIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />

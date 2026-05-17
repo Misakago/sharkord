@@ -1,7 +1,7 @@
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
-import type { TPluginSettingDefinition } from '@sharkord/shared';
-import { getTrpcError } from '@sharkord/shared';
+import type { TPluginSettingDefinition } from '@mikotord/shared';
+import { getTrpcError } from '@mikotord/shared';
 import {
   Button,
   Dialog,
@@ -13,7 +13,7 @@ import {
   Spinner,
   Switch,
   Textarea
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Save, Settings } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,7 +38,7 @@ const SettingsList = memo(
 
     return (
       <div className="w-80 border-r flex flex-col">
-        <div className="px-4 py-3 border-b bg-muted/30">
+        <div className="px-4 py-3 border-b bg-accent">
           <h3 className="font-semibold text-sm">{t('settingsLabel')}</h3>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -54,7 +54,7 @@ const SettingsList = memo(
                   onClick={() => onSelect(def.key)}
                   className={cn(
                     'w-full text-left px-3 py-2 rounded-md text-sm transition-colors',
-                    'hover:bg-muted',
+                    'hover:bg-accent',
                     selectedKey === def.key &&
                       'bg-primary text-primary-foreground hover:bg-primary/90'
                   )}
@@ -330,7 +330,7 @@ const PluginSettingsDialog = memo(
                       </div>
                     </div>
 
-                    <div className="border-t p-4 bg-muted/30">
+                    <div className="border-t p-4 bg-accent">
                       <div className="flex items-center justify-between gap-4">
                         <div className="text-xs text-muted-foreground">
                           {dirtyKeys.size > 0

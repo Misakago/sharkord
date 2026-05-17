@@ -1,4 +1,4 @@
-import { ChannelType, ServerEvents } from '@sharkord/shared';
+import { ChannelType, ServerEvents } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { config } from '../../config';
@@ -62,7 +62,7 @@ const openDirectMessageRoute = rateLimitedProcedure(protectedProcedure, {
       const newChannel = await tx
         .insert(channels)
         .values({
-          type: ChannelType.VOICE, // use voice to allow private calls in the future
+          type: ChannelType.TEXT,
           name: `DM - ${ctx.user.id}:${input.userId}`,
           topic: null,
           private: true,

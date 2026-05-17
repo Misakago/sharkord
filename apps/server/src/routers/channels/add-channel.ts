@@ -1,17 +1,16 @@
-import { ActivityLogType, ChannelType, Permission } from '@sharkord/shared';
+import { ActivityLogType, ChannelType, Permission } from '@mikotord/shared';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
 import { publishChannel } from '../../db/publishers';
 import { channels } from '../../db/schema';
 import { enqueueActivityLog } from '../../queues/activity-log';
-import { VoiceRuntime } from '../../runtimes/voice';
 import { protectedProcedure } from '../../utils/trpc';
 
 const addChannelRoute = protectedProcedure
   .input(
     z.object({
-      type: z.enum(ChannelType),
+      type: z.literal(ChannelType.TEXT),
       name: z.string().min(1).max(27),
       categoryId: z.number()
     })
@@ -47,12 +46,6 @@ const addChannelRoute = protectedProcedure
 
       return newChannel;
     });
-
-    if (channel.type === ChannelType.VOICE) {
-      const runtime = new VoiceRuntime(channel.id);
-
-      await runtime.init();
-    }
 
     publishChannel(channel.id, 'create');
     enqueueActivityLog({

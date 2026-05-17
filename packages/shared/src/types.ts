@@ -1,33 +1,8 @@
 import { ChannelPermission, type TFile, type TSettings, type TUser } from '.';
 
 export enum ChannelType {
-  TEXT = 'TEXT',
-  VOICE = 'VOICE'
+  TEXT = 'TEXT'
 }
-
-export enum StreamKind {
-  AUDIO = 'audio',
-  VIDEO = 'video',
-  SCREEN = 'screen',
-  SCREEN_AUDIO = 'screen_audio',
-  EXTERNAL_VIDEO = 'external_video',
-  EXTERNAL_AUDIO = 'external_audio'
-}
-
-export type TExternalStreamTrackKind = 'audio' | 'video';
-
-export type TExternalStreamTracks = {
-  audio?: boolean;
-  video?: boolean;
-};
-
-export type TRemoteProducerIds = {
-  remoteVideoIds: number[];
-  remoteAudioIds: number[];
-  remoteScreenIds: number[];
-  remoteScreenAudioIds: number[];
-  remoteExternalStreamIds: number[];
-};
 
 export type TPublicServerSettings = Pick<
   TSettings,
@@ -48,9 +23,7 @@ export type TPublicServerSettings = Pick<
   | 'enableSearch'
   | 'showWelcomeDialog'
   | 'storageSignedUrlsEnabled'
-> & {
-  webRtcMaxBitrate: number;
-};
+>;
 
 export type TGenericObject = {
   [key: string]: any;
@@ -65,7 +38,7 @@ export type TMessageMediaMetadata = {
   url: string;
   title?: string;
   description?: string;
-  mediaType: 'image' | 'video' | 'audio';
+  mediaType: 'image';
 };
 
 export type TMessageOpenGraphMetadata = {
@@ -76,13 +49,58 @@ export type TMessageOpenGraphMetadata = {
   description?: string;
   mediaType: string;
   images?: string[];
-  videos?: string[];
   favicons?: string[];
+};
+
+export type TClaudeCodeTaskMetadata = {
+  kind: 'claude_code_task';
+  runId: string;
+  status: 'running' | 'waiting_for_user' | 'completed' | 'failed';
+};
+
+export type TClaudeCodeAskUserQuestionOption = {
+  label: string;
+  description?: string;
+};
+
+export type TClaudeCodeAskUserQuestion = {
+  question: string;
+  header: string;
+  options: TClaudeCodeAskUserQuestionOption[];
+  multiSelect?: boolean;
+};
+
+export type TClaudeCodeAskUserQuestionAnswers = Record<string, string | string[]>;
+
+export type TClaudeCodeAskUserQuestionMetadata = {
+  kind: 'claude_code_ask_user_question';
+  requestId: string;
+  runId: string;
+  status: 'pending' | 'answered' | 'cancelled' | 'expired';
+  questions: TClaudeCodeAskUserQuestion[];
+  answers?: TClaudeCodeAskUserQuestionAnswers;
+  createdAt: number;
+  updatedAt?: number;
+  answeredAt?: number;
+  cancelledAt?: number;
+  expiredAt?: number;
 };
 
 export type TMessageMetadata =
   | TMessageMediaMetadata
-  | TMessageOpenGraphMetadata;
+  | TMessageOpenGraphMetadata
+  | TClaudeCodeTaskMetadata
+  | TClaudeCodeAskUserQuestionMetadata;
+
+export type TClaudeCodeStatus = {
+  state: 'idle' | 'starting' | 'running' | 'waiting_for_user' | 'failed';
+  connected: boolean;
+  runId?: string;
+  channelId?: number;
+  messageId?: number;
+  lastError?: string;
+  updatedAt: number;
+};
 
 export type WithOptional<T, K extends keyof T> = Omit<T, K> &
   Partial<Pick<T, K>>;

@@ -4,7 +4,7 @@ import {
   STORAGE_MAX_IMAGE_OPTIMIZATION_QUALITY,
   STORAGE_MIN_IMAGE_OPTIMIZATION_QUALITY,
   StorageOverflowAction
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { z } from 'zod';
 import { updateSettings } from '../../db/mutations/server';
 import { publishSettings } from '../../db/publishers';

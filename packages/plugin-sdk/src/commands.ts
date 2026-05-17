@@ -2,7 +2,7 @@ import type {
   TCommandArg,
   TCommandContract,
   TInvokerContext
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import type { PluginContext } from '.';
 
 type TypedRegisterCommand<TCommands extends TCommandContract> = <

@@ -6,7 +6,7 @@ import { useUserRoles } from '@/features/server/hooks';
 import { useOwnUserId, useUserStatus } from '@/features/server/users/hooks';
 import { useDateLocale } from '@/hooks/use-date-locale';
 import { cn } from '@/lib/utils';
-import { UserStatus, type TJoinedUser } from '@sharkord/shared';
+import { UserStatus, type TJoinedUser } from '@mikotord/shared';
 import {
   Button,
   DropdownMenu,
@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { format, formatDistanceToNow } from 'date-fns';
 import { MoreVertical, Trash2, UserCog } from 'lucide-react';
 import { memo, useCallback } from 'react';
@@ -44,7 +44,7 @@ const TableUser = memo(({ user, refetch }: TTableUserProps) => {
     <>
       <div
         key={user.id}
-        className="grid grid-cols-[60px_1fr_120px_120px_120px_80px_50px] gap-4 px-4 py-3 text-sm hover:bg-muted/30 transition-colors"
+        className="grid grid-cols-[60px_1fr_120px_120px_120px_80px_50px] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent"
       >
         <div className="flex items-center justify-center">
           <UserAvatar

@@ -1,7 +1,8 @@
 import { useChannelById } from '@/features/server/channels/hooks';
 import { useCan, usePublicServerSettings } from '@/features/server/hooks';
+import { getFileNameWithLockedExtension } from '@/helpers/file-name';
 import { uploadFile, type TUploadProgress } from '@/helpers/upload-file';
-import { isPreviewable, Permission, type TTempFile } from '@sharkord/shared';
+import { Permission, type TFile, type TTempFile } from '@mikotord/shared';
 import {
   useCallback,
   useEffect,
@@ -17,9 +18,12 @@ type TDisplayItem = {
   name: string;
   size: number;
   extension: string;
+  mimeType?: string;
   previewUrl?: string;
+  sourceFile?: File;
   progress?: number;
   file?: TTempFile;
+  existingFile?: TFile;
 };
 
 const useUploadFiles = (
@@ -28,7 +32,6 @@ const useUploadFiles = (
   disabled: boolean = false
 ) => {
   const [files, setFiles] = useState<TTempFile[]>([]);
-  const filesRef = useRef<TTempFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadingSize, setUploadingSize] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState(0);
@@ -55,34 +58,11 @@ const useUploadFiles = (
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // hackers gonna hack
-  filesRef.current = files;
   previewUrlsRef.current = previewUrls;
 
-  const takeAllowedFiles = useCallback(
-    (filesToUpload: File[]) => {
-      const maxFilesPerMessage =
-        settings?.storageMaxFilesPerMessage ?? Number.MAX_SAFE_INTEGER;
-      const remainingSlots = maxFilesPerMessage - filesRef.current.length;
-
-      if (remainingSlots <= 0) {
-        toast.warning(
-          `Maximum attachments reached (${maxFilesPerMessage} per message).`
-        );
-        return [];
-      }
-
-      if (filesToUpload.length > remainingSlots) {
-        const discardedCount = filesToUpload.length - remainingSlots;
-
-        toast.warning(
-          `${discardedCount} file${discardedCount > 1 ? 's were' : ' was'} ignored due to the per-message attachment limit.`
-        );
-      }
-
-      return filesToUpload.slice(0, remainingSlots);
-    },
-    [settings?.storageMaxFilesPerMessage]
-  );
+  const takeAllowedFiles = useCallback((filesToUpload: File[]) => {
+    return filesToUpload;
+  }, []);
 
   const removeFile = useCallback((id: string) => {
     setFiles((prevFiles) => prevFiles.filter((file) => file.id !== id));
@@ -101,6 +81,25 @@ const useUploadFiles = (
         return next;
       });
     }
+  }, []);
+
+  const renameFile = useCallback((id: string, originalName: string) => {
+    setFiles((prevFiles) =>
+      prevFiles.map((file) => {
+        if (file.id !== id) {
+          return file;
+        }
+
+        return {
+          ...file,
+          originalName: getFileNameWithLockedExtension(
+            file.originalName,
+            file.extension,
+            originalName
+          )
+        };
+      })
+    );
   }, []);
 
   const clearFiles = useCallback(() => {
@@ -151,14 +150,18 @@ const useUploadFiles = (
     can
   ]);
 
-  const openFileDialog = useCallback(() => {
-    if (!checkUploadPermissions()) return;
+  const openFileDialog = useCallback(
+    (accept: string = '*') => {
+      if (!checkUploadPermissions()) return;
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
-    }
-  }, [checkUploadPermissions]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+        fileInputRef.current.accept = accept;
+        fileInputRef.current.click();
+      }
+    },
+    [checkUploadPermissions]
+  );
 
   const processFiles = useCallback(
     async (filesToUpload: File[]) => {
@@ -201,9 +204,9 @@ const useUploadFiles = (
           name: file.name,
           size: file.size,
           extension: ext,
-          previewUrl: isPreviewable(file)
-            ? URL.createObjectURL(file)
-            : undefined,
+          mimeType: file.type,
+          previewUrl: URL.createObjectURL(file),
+          sourceFile: file,
           progress: 0
         };
       });
@@ -422,6 +425,7 @@ const useUploadFiles = (
           name: file.originalName,
           size: file.size,
           extension: file.extension,
+          mimeType: undefined,
           previewUrl: previewUrls[id],
           file
         });
@@ -444,6 +448,7 @@ const useUploadFiles = (
       files,
       displayItems,
       removeFile,
+      renameFile,
       clearFiles,
       uploading,
       uploadingSize,
@@ -455,6 +460,7 @@ const useUploadFiles = (
       files,
       displayItems,
       removeFile,
+      renameFile,
       clearFiles,
       uploading,
       uploadingSize,

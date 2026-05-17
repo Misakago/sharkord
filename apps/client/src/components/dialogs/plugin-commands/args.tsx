@@ -1,4 +1,4 @@
-import type { TCommandInfo } from '@sharkord/shared';
+import type { TCommandInfo } from '@mikotord/shared';
 import {
   Group,
   Input,
@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo } from 'react';
 
 type TArgsProps = {

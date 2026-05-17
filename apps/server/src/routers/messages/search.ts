@@ -1,11 +1,19 @@
-import { getPlainTextFromHtml, type TFile } from '@sharkord/shared';
+import { getPlainTextFromHtml, type TFile } from '@mikotord/shared';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { config } from '../../config';
 import { db } from '../../db';
 import { getChannelsForUser } from '../../db/queries/channels';
+import { getDirectMessageChannelIdsForUser } from '../../db/queries/dms';
 import { getSettings } from '../../db/queries/server';
-import { channels, files, messageFiles, messages } from '../../db/schema';
+import {
+  channels,
+  directMessages,
+  files,
+  messageFiles,
+  messages,
+  users
+} from '../../db/schema';
 import { attachFileToken } from '../../helpers/files-crypto';
 import { invariant } from '../../utils/invariant';
 import { protectedProcedure, rateLimitedProcedure } from '../../utils/trpc';
@@ -47,11 +55,20 @@ const searchMessagesRoute = rateLimitedProcedure(protectedProcedure, {
 
     invariant(settings.enableSearch, 'Search is disabled on this server');
 
-    const accessibleChannels = await getChannelsForUser(ctx.userId);
+    const [accessibleChannels, participantDmChannelIds] = await Promise.all([
+      getChannelsForUser(ctx.userId),
+      getDirectMessageChannelIdsForUser(ctx.userId)
+    ]);
 
+    const participantDmChannelIdSet = new Set(participantDmChannelIds);
     const accessibleChannelIds = accessibleChannels
-      .filter((channel) => !channel.isDm)
+      .filter(
+        (channel) => !channel.isDm || participantDmChannelIdSet.has(channel.id)
+      )
       .map((channel) => channel.id);
+    const accessibleDmChannelIds = accessibleChannelIds.filter((channelId) =>
+      participantDmChannelIdSet.has(channelId)
+    );
 
     if (accessibleChannelIds.length === 0) {
       return {
@@ -66,10 +83,57 @@ const searchMessagesRoute = rateLimitedProcedure(protectedProcedure, {
       MAX_MESSAGE_FETCH_LIMIT
     );
 
+    const dmChannelNames = new Map<number, string>();
+
+    if (accessibleDmChannelIds.length > 0) {
+      const dmRows = await db
+        .select({
+          channelId: directMessages.channelId,
+          userOneId: directMessages.userOneId,
+          userTwoId: directMessages.userTwoId
+        })
+        .from(directMessages)
+        .where(inArray(directMessages.channelId, accessibleDmChannelIds));
+      const otherUserIds = dmRows.map((row) =>
+        row.userOneId === ctx.userId ? row.userTwoId : row.userOneId
+      );
+      const dmUsers =
+        otherUserIds.length > 0
+          ? await db
+              .select({
+                id: users.id,
+                name: users.name
+              })
+              .from(users)
+              .where(inArray(users.id, otherUserIds))
+          : [];
+      const userNameById = new Map(dmUsers.map((user) => [user.id, user.name]));
+
+      for (const row of dmRows) {
+        const otherUserId =
+          row.userOneId === ctx.userId ? row.userTwoId : row.userOneId;
+
+        dmChannelNames.set(
+          row.channelId,
+          userNameById.get(otherUserId) ?? 'Direct Message'
+        );
+      }
+    }
+
+    const getChannelDisplayName = (channel: {
+      channelId: number;
+      channelName: string;
+      channelIsDm: boolean;
+    }) =>
+      channel.channelIsDm
+        ? (dmChannelNames.get(channel.channelId) ?? channel.channelName)
+        : channel.channelName;
+
     const [messageRows, fileRows] = await Promise.all([
       db
         .select({
           message: messages,
+          channelId: channels.id,
           channelName: channels.name,
           channelIsDm: channels.isDm,
           channelPrivate: channels.private
@@ -88,6 +152,7 @@ const searchMessagesRoute = rateLimitedProcedure(protectedProcedure, {
         .select({
           file: files,
           messageId: messages.id,
+          parentMessageId: messages.parentMessageId,
           channelId: messages.channelId,
           messageContent: messages.content,
           messageCreatedAt: messages.createdAt,
@@ -165,7 +230,7 @@ const searchMessagesRoute = rateLimitedProcedure(protectedProcedure, {
 
       return {
         ...row.message,
-        channelName: row.channelName,
+        channelName: getChannelDisplayName(row),
         channelIsDm: row.channelIsDm,
         plainContent: row.plainContent,
         files: preparedFiles,
@@ -183,10 +248,11 @@ const searchMessagesRoute = rateLimitedProcedure(protectedProcedure, {
       return {
         file,
         messageId: row.messageId,
+        parentMessageId: row.parentMessageId,
         channelId: row.channelId,
         messageContent: row.messageContent,
         messageCreatedAt: row.messageCreatedAt,
-        channelName: row.channelName,
+        channelName: getChannelDisplayName(row),
         channelIsDm: row.channelIsDm
       };
     });

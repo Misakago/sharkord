@@ -1,4 +1,4 @@
-import { ChannelPermission, Permission } from '@sharkord/shared';
+import { ChannelPermission, Permission } from '@mikotord/shared';
 import { useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import type { IRootState } from '../store';
@@ -12,20 +12,17 @@ import {
   connectingSelector,
   disconnectInfoSelector,
   dmsOpenSelector,
-  hasSharingScreenUsersSelector,
   hasUnreadMentionsSelector,
   hasVisibleChannelsInCategorySelector,
   infoSelector,
   isOwnUserOwnerSelector,
   ownUserRolesSelector,
-  ownVoiceUserSelector,
   pluginsEnabledSelector,
   publicServerSettingsSelector,
   serverNameSelector,
   typingUsersByChannelIdSelector,
   typingUsersByThreadIdSelector,
-  userRolesSelector,
-  voiceUsersByChannelIdSelector
+  userRolesSelector
 } from './selectors';
 
 export const useIsConnected = () => useSelector(connectedSelector);
@@ -116,13 +113,6 @@ export const useTypingUsersByThreadId = (parentMessageId: number) =>
     typingUsersByThreadIdSelector(state, parentMessageId)
   );
 
-export const useVoiceUsersByChannelId = (channelId: number) =>
-  useSelector((state: IRootState) =>
-    voiceUsersByChannelIdSelector(state, channelId)
-  );
-
-export const useOwnVoiceUser = () => useSelector(ownVoiceUserSelector);
-
 export const useUnreadMessagesCount = (channelId: number) =>
   useSelector((state: IRootState) =>
     channelReadStateByIdSelector(state, channelId)
@@ -147,11 +137,6 @@ export const useCategoryUnreadData = (categoryId: number) => {
     [unreadCount, hasUnreadMentions]
   );
 };
-
-export const useHasSharingScreenUsers = (channelId: number) =>
-  useSelector((state: IRootState) =>
-    hasSharingScreenUsersSelector(state, channelId)
-  );
 
 export const useHasUnreadMentions = (channelId: number) =>
   useSelector((state: IRootState) =>

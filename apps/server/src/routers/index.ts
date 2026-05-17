@@ -1,4 +1,5 @@
 import { t } from '../utils/trpc';
+import { agentsRouter } from './agents';
 import { categoriesRouter } from './categories';
 import { channelsRouter } from './channels';
 import { dmsRouter } from './dms';
@@ -10,7 +11,6 @@ import { othersRouter } from './others';
 import { pluginsRouter } from './plugins';
 import { rolesRouter } from './roles';
 import { usersRouter } from './users';
-import { voiceRouter } from './voice';
 
 const appRouter = t.router({
   others: othersRouter,
@@ -22,9 +22,9 @@ const appRouter = t.router({
   emojis: emojisRouter,
   roles: rolesRouter,
   invites: invitesRouter,
-  voice: voiceRouter,
   categories: categoriesRouter,
-  plugins: pluginsRouter
+  plugins: pluginsRouter,
+  agents: agentsRouter
 });
 
 type AppRouter = typeof appRouter;

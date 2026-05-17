@@ -6,8 +6,6 @@ export const appLoadingSelector = (state: IRootState) => state.app.appLoading;
 export const isAutoConnectingSelector = (state: IRootState) =>
   state.app.isAutoConnecting;
 
-export const devicesSelector = (state: IRootState) => state.app.devices;
-
 export const modViewOpenSelector = (state: IRootState) => state.app.modViewOpen;
 
 export const modViewUserIdSelector = (state: IRootState) =>
@@ -46,19 +44,17 @@ export const browserNotificationsForRepliesSelector = (state: IRootState) =>
 export const messageJumpTargetSelector = (state: IRootState) =>
   state.app.messageJumpTarget;
 
-export const voiceChatSidebarOpenSelector = (state: IRootState) =>
-  state.app.voiceChatSidebarOpen;
-
-export const voiceChatChannelIdSelector = (state: IRootState) =>
-  state.app.voiceChatChannelId;
-
 export const pluginSlotDebugSelector = (state: IRootState) =>
   state.app.pluginSlotDebug;
 
-export const voiceChatSidebarDataSelector = createSelector(
-  [voiceChatSidebarOpenSelector, voiceChatChannelIdSelector],
-  (isOpen, channelId) => ({ isOpen, channelId })
-);
+export const claudeCodePanelOpenSelector = (state: IRootState) =>
+  state.app.claudeCodePanelOpen;
+
+export const claudeCodeHistoryOpenSelector = (state: IRootState) =>
+  state.app.claudeCodeHistoryOpen;
+
+export const claudeCodeTerminalControlSelector = (state: IRootState) =>
+  state.app.claudeCodeTerminalControl;
 
 export const threadSidebarDataSelector = createSelector(
   [

@@ -1,23 +1,20 @@
 import type {
   PluginContext,
-  TCreateStreamOptions,
-  TExternalStreamHandle,
   UnloadPluginContext
-} from '@sharkord/plugin-sdk';
+} from '@mikotord/plugin-sdk';
 import {
   CLIENT_ENTRY_FILE,
   getErrorMessage,
   PLUGIN_SDK_VERSION,
   SERVER_ENTRY_FILE,
   ServerEvents,
-  StreamKind,
   zPluginId,
   zPluginManifest,
   type TInvokerContext,
   type TPluginInfo,
   type TPluginManifest,
   type TPluginMetadata
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import fs from 'fs/promises';
 import path from 'path';
@@ -28,7 +25,6 @@ import { getPublicUserById, getPublicUsers } from '../db/queries/users';
 import { channels } from '../db/schema';
 import { PLUGINS_PATH } from '../helpers/paths';
 import { logger } from '../logger';
-import { VoiceRuntime } from '../runtimes/voice';
 import { pubsub } from '../utils/pubsub';
 import { ActionRegistry } from './action-registry';
 import { createPluginMessage } from './actions/create-plugin-message';
@@ -513,94 +509,6 @@ class PluginManager {
           this.actionRegistry.register(pluginId, action);
         }
       },
-      voice: {
-        getRouter: (channelId: number) => {
-          const channel = VoiceRuntime.findById(channelId);
-
-          if (!channel) {
-            throw new Error(
-              `Voice runtime not found for channel ID ${channelId}`
-            );
-          }
-
-          return channel.getRouter();
-        },
-        createStream: (
-          options: TCreateStreamOptions
-        ): TExternalStreamHandle => {
-          const channel = VoiceRuntime.findById(options.channelId);
-
-          if (!channel) {
-            throw new Error(
-              `Voice runtime not found for channel ID ${options.channelId}`
-            );
-          }
-
-          const streamId = channel.createExternalStream({
-            title: options.title,
-            key: options.key,
-            pluginId,
-            avatarUrl: options.avatarUrl,
-            bannerUrl: options.bannerUrl,
-            producers: options.producers
-          });
-
-          const stream = channel.getState().externalStreams[streamId]!;
-
-          pubsub.publish(ServerEvents.VOICE_ADD_EXTERNAL_STREAM, {
-            channelId: options.channelId,
-            streamId,
-            stream
-          });
-
-          if (options.producers.audio) {
-            pubsub.publishForChannel(
-              options.channelId,
-              ServerEvents.VOICE_NEW_PRODUCER,
-              {
-                channelId: options.channelId,
-                remoteId: streamId,
-                kind: StreamKind.EXTERNAL_AUDIO
-              }
-            );
-          }
-
-          if (options.producers.video) {
-            pubsub.publishForChannel(
-              options.channelId,
-              ServerEvents.VOICE_NEW_PRODUCER,
-              {
-                channelId: options.channelId,
-                remoteId: streamId,
-                kind: StreamKind.EXTERNAL_VIDEO
-              }
-            );
-          }
-
-          scopedLogger.debug(
-            `Created external stream '${options.title}' (key: ${options.key}, id: ${streamId}) with tracks: audio=${!!options.producers.audio}, video=${!!options.producers.video}`
-          );
-
-          return {
-            streamId,
-            remove: () => {
-              channel.removeExternalStream(streamId);
-
-              scopedLogger.debug(
-                `Removed external stream '${options.title}' (key: ${options.key}, id: ${streamId})`
-              );
-            },
-            update: (updateOptions) => {
-              channel.updateExternalStream(streamId, updateOptions);
-
-              scopedLogger.debug(
-                `Updated external stream '${options.title}' (key: ${options.key}, id: ${streamId})`
-              );
-            }
-          };
-        },
-        getListenInfo: () => VoiceRuntime.getListenInfo()
-      },
       messages: {
         send: async (
           channelId: number,
@@ -674,7 +582,6 @@ class PluginManager {
       log: baseContext.log,
       debug: baseContext.debug,
       error: baseContext.error,
-      voice: baseContext.voice,
       messages: baseContext.messages,
       ui: baseContext.ui
     };

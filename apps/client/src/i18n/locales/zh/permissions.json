@@ -7,7 +7,6 @@
   "server": {
     "SEND_MESSAGES": "发送消息",
     "REACT_TO_MESSAGES": "对消息作出反应",
-    "PIN_MESSAGES": "置顶消息",
     "UPLOAD_FILES": "上传文件",
     "JOIN_VOICE_CHANNELS": "加入语音频道",
     "SHARE_SCREEN": "共享屏幕",
@@ -30,7 +29,6 @@
   "serverDescriptions": {
     "SEND_MESSAGES": "授予在频道中发送消息的权限。",
     "REACT_TO_MESSAGES": "授予对消息作出反应的权限。",
-    "PIN_MESSAGES": "授予置顶消息的权限。",
     "UPLOAD_FILES": "授予在频道中上传文件的权限。",
     "JOIN_VOICE_CHANNELS": "授予加入语音频道的权限。",
     "SHARE_SCREEN": "授予共享屏幕的权限。",

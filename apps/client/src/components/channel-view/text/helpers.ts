@@ -1,4 +1,4 @@
-import type { TJoinedMessage } from '@sharkord/shared';
+import type { TJoinedMessage } from '@mikotord/shared';
 
 // static values for ChatInputDivider component
 const MAX_VH = 80;
@@ -12,10 +12,9 @@ type TMessagesGroupComparatorProps = {
   disableFiles?: boolean;
   disableReactions?: boolean;
   onReplyMessageSelect?: (message: TJoinedMessage) => void;
+  onEditMessageSelect?: (message: TJoinedMessage) => void;
   replyTargetMessageId?: number;
   activeThreadMessageId?: number;
-  editingMessageId?: number;
-  onEditComplete?: () => void;
 };
 
 const groupContainsMessageId = (
@@ -37,7 +36,8 @@ const areGroupsEqual = (
     prevProps.disableActions !== nextProps.disableActions ||
     prevProps.disableFiles !== nextProps.disableFiles ||
     prevProps.disableReactions !== nextProps.disableReactions ||
-    prevProps.onReplyMessageSelect !== nextProps.onReplyMessageSelect
+    prevProps.onReplyMessageSelect !== nextProps.onReplyMessageSelect ||
+    prevProps.onEditMessageSelect !== nextProps.onEditMessageSelect
   ) {
     return false;
   }
@@ -56,10 +56,8 @@ const areGroupsEqual = (
     prevProps.replyTargetMessageId === nextProps.replyTargetMessageId;
   const activeThreadUnchanged =
     prevProps.activeThreadMessageId === nextProps.activeThreadMessageId;
-  const editingUnchanged =
-    prevProps.editingMessageId === nextProps.editingMessageId;
 
-  if (replyTargetUnchanged && activeThreadUnchanged && editingUnchanged) {
+  if (replyTargetUnchanged && activeThreadUnchanged) {
     return true;
   }
 
@@ -74,16 +72,7 @@ const areGroupsEqual = (
       ) ||
       groupContainsMessageId(nextProps.group, nextProps.activeThreadMessageId)
     : false;
-  const isEditingChangeRelevant = !editingUnchanged
-    ? groupContainsMessageId(prevProps.group, prevProps.editingMessageId) ||
-      groupContainsMessageId(nextProps.group, nextProps.editingMessageId)
-    : false;
-
-  return (
-    !isReplyTargetChangeRelevant &&
-    !isActiveThreadChangeRelevant &&
-    !isEditingChangeRelevant
-  );
+  return !isReplyTargetChangeRelevant && !isActiveThreadChangeRelevant;
 };
 
 // calculate the minimum acceptable chat input height

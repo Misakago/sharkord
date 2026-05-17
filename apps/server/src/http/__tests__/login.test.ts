@@ -1,4 +1,4 @@
-import { sha256 } from '@sharkord/shared';
+import { sha256 } from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -60,7 +60,7 @@ describe('/login', () => {
       .get();
 
     expect(newUser).toBeTruthy();
-    expect(newUser?.name).toStartWith('SharkordUser');
+    expect(newUser?.name).toStartWith('MikotordUser');
   });
 
   test('should mark all existing messages as read for first-time users', async () => {

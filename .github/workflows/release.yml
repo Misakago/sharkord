@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build project artifacts
-        uses: ./.github/actions/build-sharkord
+        uses: ./.github/actions/build-mikotord
         with:
           bump: ${{ inputs.bump }}
 
@@ -44,7 +44,7 @@ jobs:
       - name: Identify user
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "automation@example.invalid"
 
       - name: Build and publish Docker image
         uses: ./.github/actions/docker-build-publish
@@ -52,13 +52,12 @@ jobs:
           docker_username: ${{ secrets.DOCKER_USERNAME }}
           docker_password: ${{ secrets.DOCKER_PASSWORD }}
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/sharkord:latest
-            ${{ secrets.DOCKER_USERNAME }}/sharkord:v${{ steps.get_version.outputs.version }}
+            ${{ secrets.DOCKER_USERNAME }}/mikotord:latest
+            ${{ secrets.DOCKER_USERNAME }}/mikotord:v${{ steps.get_version.outputs.version }}
           labels: |
-            org.opencontainers.image.title=Sharkord
-            org.opencontainers.image.description=Sharkord Server
+            org.opencontainers.image.title=Mikotord
+            org.opencontainers.image.description=Mikotord Server
             org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
-            org.opencontainers.image.source=https://github.com/Sharkord/sharkord
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -67,11 +66,11 @@ jobs:
           name: v${{ steps.get_version.outputs.version }}
           draft: true
           files: |
-            apps/server/build/out/sharkord-linux-x64
-            apps/server/build/out/sharkord-linux-arm64
-            apps/server/build/out/sharkord-windows-x64.exe
-            apps/server/build/out/sharkord-macos-x64
-            apps/server/build/out/sharkord-macos-arm64
+            apps/server/build/out/mikotord-linux-x64
+            apps/server/build/out/mikotord-linux-arm64
+            apps/server/build/out/mikotord-windows-x64.exe
+            apps/server/build/out/mikotord-macos-x64
+            apps/server/build/out/mikotord-macos-arm64
             apps/server/build/out/release.json
           body: |
             ## Changes
@@ -79,7 +78,7 @@ jobs:
 
             ## Docker Image
             ```bash
-            docker pull ${{ secrets.DOCKER_USERNAME }}/sharkord:v${{ steps.get_version.outputs.version }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/mikotord:v${{ steps.get_version.outputs.version }}
             ```
       - name: Commit version bump
         if: ${{ inputs.bump != 'none' }}

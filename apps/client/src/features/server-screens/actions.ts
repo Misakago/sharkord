@@ -1,5 +1,5 @@
 import type { ServerScreen } from '@/components/server-screens/screens';
-import type { TGenericObject } from '@sharkord/shared';
+import type { TGenericObject } from '@mikotord/shared';
 import { store } from '../store';
 import { serverScreenSliceActions } from './slice';
 

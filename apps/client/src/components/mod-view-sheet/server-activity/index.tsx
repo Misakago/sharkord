@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@sharkord/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@mikotord/ui';
 import { Activity, File, Link, MessageSquareText } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +18,7 @@ const ServerActivity = memo(() => {
       </CardHeader>
       <CardContent className="space-y-2">
         <div
-          className="flex items-center justify-between py-1.5 px-1 hover:bg-muted/30 rounded cursor-pointer"
+          className="flex items-center justify-between py-1.5 px-1 hover:bg-accent rounded cursor-pointer"
           onClick={() => setView(ModViewScreen.MESSAGES)}
         >
           <div className="flex items-center gap-3">
@@ -31,7 +31,7 @@ const ServerActivity = memo(() => {
         </div>
 
         <div
-          className="flex items-center justify-between py-1.5 px-1 hover:bg-muted/30 rounded cursor-pointer"
+          className="flex items-center justify-between py-1.5 px-1 hover:bg-accent rounded cursor-pointer"
           onClick={() => setView(ModViewScreen.LINKS)}
         >
           <div className="flex items-center gap-3">
@@ -42,7 +42,7 @@ const ServerActivity = memo(() => {
         </div>
 
         <div
-          className="flex items-center justify-between py-1.5 px-1 hover:bg-muted/30 rounded cursor-pointer"
+          className="flex items-center justify-between py-1.5 px-1 hover:bg-accent rounded cursor-pointer"
           onClick={() => setView(ModViewScreen.FILES)}
         >
           <div className="flex items-center gap-3">

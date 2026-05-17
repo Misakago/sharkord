@@ -1,13 +1,11 @@
 import {
-  audioExtensions,
   imageExtensions,
   removeCommandElements,
   removeEmojiElements,
-  videoExtensions,
   type TGenericObject,
   type TMessageMediaMetadata,
   type TMessageOpenGraphMetadata
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 
 // if it ends in a known media extension, we just assume it's a direct media link and skip the DNS resolution and metadata fetching
 // there might be cases where this is not true, but it's a good heuristic to avoid unnecessary work
@@ -15,7 +13,7 @@ const getDirectMediaMetaFromUrl = (
   parsedUrl: URL
 ): {
   isDirectMediaLink: boolean;
-  mediaType: 'image' | 'video' | 'audio' | 'none';
+  mediaType: 'image' | 'none';
 } => {
   try {
     const pathname = parsedUrl.pathname.toLowerCase();
@@ -24,18 +22,6 @@ const getDirectMediaMetaFromUrl = (
 
     if (isImage) {
       return { isDirectMediaLink: true, mediaType: 'image' };
-    }
-
-    const isAudio = audioExtensions.some((ext) => pathname.endsWith(ext));
-
-    if (isAudio) {
-      return { isDirectMediaLink: true, mediaType: 'audio' };
-    }
-
-    const isVideo = videoExtensions.some((ext) => pathname.endsWith(ext));
-
-    if (isVideo) {
-      return { isDirectMediaLink: true, mediaType: 'video' };
     }
   } catch {
     // ignore
@@ -138,7 +124,6 @@ const createOpenGraphMetadata = (
     'website';
 
   const images = normalizeUrlList(url, preview.images ?? preview.ogImage);
-  const videos = normalizeUrlList(url, preview.videos ?? preview.ogVideo);
   const favicons = normalizeUrlList(url, preview.favicons ?? preview.favicon);
 
   const hasRenderableContent =
@@ -160,7 +145,6 @@ const createOpenGraphMetadata = (
     description,
     mediaType,
     images,
-    videos,
     favicons
   };
 };

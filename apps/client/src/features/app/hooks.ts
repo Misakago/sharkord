@@ -7,7 +7,9 @@ import {
   browserNotificationsForMentionsSelector,
   browserNotificationsForRepliesSelector,
   browserNotificationsSelector,
-  devicesSelector,
+  claudeCodePanelOpenSelector,
+  claudeCodeHistoryOpenSelector,
+  claudeCodeTerminalControlSelector,
   isAltHeldSelector,
   isAutoConnectingSelector,
   isCtrlHeldSelector,
@@ -18,8 +20,7 @@ import {
   modViewUserIdSelector,
   pluginSlotDebugSelector,
   selectedDmChannelIdSelector,
-  threadSidebarDataSelector,
-  voiceChatSidebarDataSelector
+  threadSidebarDataSelector
 } from './selectors';
 
 export const useIsAppLoading = () => useSelector(appLoadingSelector);
@@ -27,8 +28,6 @@ export const useIsAppLoading = () => useSelector(appLoadingSelector);
 export const useIsAutoConnecting = () => useSelector(isAutoConnectingSelector);
 
 export const useIsPluginsLoading = () => useSelector(loadingPluginsSelector);
-
-export const useDevices = () => useSelector(devicesSelector);
 
 export const useModViewOpen = () => {
   const isOpen = useSelector(modViewOpenSelector);
@@ -60,10 +59,16 @@ export const useMessageJumpTarget = () =>
 export const useBrowserNotificationsForReplies = () =>
   useSelector(browserNotificationsForRepliesSelector);
 
-export const useVoiceChatSidebar = () =>
-  useSelector(voiceChatSidebarDataSelector);
-
 export const usePluginSlotDebug = () => useSelector(pluginSlotDebugSelector);
+
+export const useClaudeCodePanelOpen = () =>
+  useSelector(claudeCodePanelOpenSelector);
+
+export const useClaudeCodeHistoryOpen = () =>
+  useSelector(claudeCodeHistoryOpenSelector);
+
+export const useClaudeCodeTerminalControl = () =>
+  useSelector(claudeCodeTerminalControlSelector);
 
 export const useIsShiftHeld = () => useSelector(isShiftHeldSelector);
 

@@ -10,23 +10,43 @@ export type TPluginsController = {
   loading: boolean;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const PluginsController = memo(() => {
   const fetchPlugins = useCallback(async () => {
-    try {
-      const response = await fetch(`${getUrlFromServer()}/plugin-components`);
+    let hasReleasedInitialLoad = false;
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch plugins: ${response.statusText}`);
-      }
+    const releaseInitialLoad = () => {
+      if (hasReleasedInitialLoad) return;
 
-      const pluginIds = (await response.json()) as string[];
-      const components = await processPluginComponents(pluginIds);
-
-      setPluginComponents(components);
-    } catch (error) {
-      console.error('Error fetching plugins:', error);
-    } finally {
+      hasReleasedInitialLoad = true;
       setPluginsLoading(false);
+    };
+
+    while (true) {
+      try {
+        const response = await fetch(`${getUrlFromServer()}/plugin-components`);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch plugins: ${response.statusText}`);
+        }
+
+        const pluginIds = (await response.json()) as string[];
+        const components = await processPluginComponents(pluginIds);
+
+        setPluginComponents(components);
+        releaseInitialLoad();
+        return;
+      } catch (error) {
+        if (import.meta.env.MODE !== 'development') {
+          console.error('Error fetching plugins:', error);
+          releaseInitialLoad();
+          return;
+        }
+
+        releaseInitialLoad();
+        await sleep(500);
+      }
     }
   }, []);
 

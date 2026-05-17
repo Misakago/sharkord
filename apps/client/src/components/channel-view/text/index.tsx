@@ -1,5 +1,11 @@
-import { MessageCompose } from '@/components/message-compose';
-import { useThreadSidebar } from '@/features/app/hooks';
+import {
+  MessageCompose,
+  type TMessageComposeFile
+} from '@/components/message-compose';
+import {
+  useMessageJumpTarget,
+  useThreadSidebar
+} from '@/features/app/hooks';
 import {
   useChannelCan,
   useTypingUsersByChannelId
@@ -15,9 +21,9 @@ import {
   TYPING_MS,
   getTrpcError,
   prepareMessageHtml,
-  type TJoinedMessage
-} from '@sharkord/shared';
-import { Spinner } from '@sharkord/ui';
+  type TJoinedMessage,
+  type TTempFile
+} from '@mikotord/shared';
 import { throttle } from 'lodash-es';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +34,6 @@ import { useArrowUpEdit } from './hooks/use-arrow-up-edit';
 import { useScrollController } from './hooks/use-scroll-controller';
 import { useScrollToJumpTarget } from './hooks/use-scroll-to-jump-target';
 import { MessagesGroup } from './messages-group';
-import { TextSkeleton } from './text-skeleton';
 import { TextTopbar } from './text-top-bar';
 import {
   getChannelDraftKey,
@@ -39,204 +44,299 @@ import {
 type TChannelProps = {
   channelId: number;
   onClose?: () => void;
+  onToggleMembers?: () => void;
 };
 
-const TextChannel = memo(({ channelId, onClose }: TChannelProps) => {
-  const { t } = useTranslation();
-  const {
-    messages,
-    hasMore,
-    loadMore,
-    loading,
-    fetching,
-    groupedMessages,
-    scrollToMessage
-  } = useMessages(channelId);
+const hasEditedMessageChanges = (
+  messageToEdit: TJoinedMessage,
+  content: string,
+  files: TMessageComposeFile[]
+) => {
+  const nextContent = prepareMessageHtml(content);
 
-  useScrollToJumpTarget(channelId, scrollToMessage);
+  if (nextContent !== (messageToEdit.content ?? '')) {
+    return true;
+  }
 
-  const draftChannelKey = getChannelDraftKey(channelId);
+  if (files.length !== messageToEdit.files.length) {
+    return true;
+  }
 
-  const [newMessage, setNewMessage] = useState(
-    getDraftMessage(draftChannelKey)
-  );
-  const [replyingToMessage, setReplyingToMessage] = useState<
-    TJoinedMessage | undefined
-  >();
-  const typingUsers = useTypingUsersByChannelId(channelId);
-  const composeContainerRef = useRef<HTMLDivElement>(null);
-  const { activeThreadMessageId } = useThreadSidebar();
-  const {
-    composeRef,
-    editingMessageId,
-    handleArrowUpEdit,
-    handleEditComplete
-  } = useArrowUpEdit(messages);
+  return files.some((file, index) => {
+    const originalFile = messageToEdit.files[index];
 
-  const replyTarget = useMemo<TReplyTarget | undefined>(() => {
-    if (!replyingToMessage) {
-      return undefined;
+    if (!originalFile || file.type !== 'existing') {
+      return true;
     }
 
-    if (replyingToMessage.pluginId) {
-      return { userId: null, pluginId: replyingToMessage.pluginId };
-    }
-
-    return { userId: replyingToMessage.userId, pluginId: null };
-  }, [replyingToMessage]);
-
-  const {
-    containerRef,
-    onScroll,
-    onAsyncContentLoaded,
-    scrollToBottom,
-    isAtBottom
-  } = useScrollController({
-    messages,
-    fetching,
-    hasMore,
-    loadMore,
-    hasTypingUsers: typingUsers.length > 0
+    return file.id !== originalFile.id || file.name !== originalFile.originalName;
   });
+};
 
-  const onComposeResize = useCallback(() => {
-    if (isAtBottom()) {
-      scrollToBottom();
-    }
-  }, [isAtBottom, scrollToBottom]);
+const TextChannel = memo(
+  ({ channelId, onClose, onToggleMembers }: TChannelProps) => {
+    const { t } = useTranslation();
+    const {
+      messages,
+      hasMore,
+      loadMore,
+      fetching,
+      groupedMessages,
+      scrollToMessage
+    } = useMessages(channelId);
+    const messageJumpTarget = useMessageJumpTarget();
+    const isJumpingToChannel = messageJumpTarget?.channelId === channelId;
 
-  const channelCan = useChannelCan(channelId);
+    useScrollToJumpTarget(channelId, scrollToMessage);
 
-  const sendTypingSignal = useMemo(
-    () =>
-      throttle(async () => {
+    const draftChannelKey = getChannelDraftKey(channelId);
+
+    const [newMessage, setNewMessage] = useState(
+      getDraftMessage(draftChannelKey)
+    );
+    const [replyingToMessage, setReplyingToMessage] = useState<
+      TJoinedMessage | undefined
+    >();
+    const [editingMessage, setEditingMessage] = useState<
+      TJoinedMessage | undefined
+    >();
+    const draftBeforeEditRef = useRef<string | undefined>(undefined);
+    const typingUsers = useTypingUsersByChannelId(channelId);
+    const composeContainerRef = useRef<HTMLDivElement>(null);
+    const { activeThreadMessageId } = useThreadSidebar();
+    const { composeRef, getLastEditableOwnMessage, handleEditComplete } =
+      useArrowUpEdit(messages);
+
+    const replyTarget = useMemo<TReplyTarget | undefined>(() => {
+      if (!replyingToMessage) {
+        return undefined;
+      }
+
+      if (replyingToMessage.pluginId) {
+        return { userId: null, pluginId: replyingToMessage.pluginId };
+      }
+
+      return { userId: replyingToMessage.userId, pluginId: null };
+    }, [replyingToMessage]);
+
+    const {
+      containerRef,
+      onScroll,
+      onAsyncContentLoaded,
+      scrollToBottom,
+      isAtBottom
+    } = useScrollController({
+      messages,
+      fetching,
+      hasMore,
+      loadMore,
+      hasTypingUsers: typingUsers.length > 0,
+      disableInitialScroll: isJumpingToChannel
+    });
+
+    const onComposeResize = useCallback(() => {
+      if (isAtBottom()) {
+        scrollToBottom();
+      }
+    }, [isAtBottom, scrollToBottom]);
+
+    const channelCan = useChannelCan(channelId);
+
+    const sendTypingSignal = useMemo(
+      () =>
+        throttle(async () => {
+          const trpc = getTRPCClient();
+
+          try {
+            await trpc.messages.signalTyping.mutate({ channelId });
+          } catch {
+            // ignore
+          }
+        }, TYPING_MS),
+      [channelId]
+    );
+
+    const setNewMessageHandler = useCallback(
+      (value: string) => {
+        setNewMessage(value);
+        setDraftMessage(draftChannelKey, value);
+      },
+      [setNewMessage, draftChannelKey]
+    );
+
+    const restoreDraftAfterEdit = useCallback(() => {
+      setEditingMessage(undefined);
+      setNewMessageHandler(draftBeforeEditRef.current ?? '');
+      draftBeforeEditRef.current = undefined;
+      handleEditComplete();
+    }, [handleEditComplete, setNewMessageHandler]);
+
+    const startEditingMessage = useCallback(
+      (message: TJoinedMessage) => {
+        if (!editingMessage) {
+          draftBeforeEditRef.current = newMessage;
+        }
+
+        composeRef.current?.discardFiles();
+        setReplyingToMessage(undefined);
+        setEditingMessage(message);
+        setNewMessageHandler(message.content ?? '');
+        window.setTimeout(() => composeRef.current?.focus(), 0);
+      },
+      [composeRef, editingMessage, newMessage, setNewMessageHandler]
+    );
+
+    const handleArrowUpEdit = useCallback(() => {
+      const lastEditableMessage = getLastEditableOwnMessage();
+
+      if (lastEditableMessage) {
+        startEditingMessage(lastEditableMessage);
+      }
+    }, [getLastEditableOwnMessage, startEditingMessage]);
+
+    const onSend = useCallback(
+      async (message: string, files: TTempFile[]) => {
+        sendTypingSignal.cancel();
+
         const trpc = getTRPCClient();
 
         try {
-          await trpc.messages.signalTyping.mutate({ channelId });
-        } catch {
-          // ignore
+          await trpc.messages.send.mutate({
+            content: prepareMessageHtml(message),
+            channelId,
+            files: files.map((f) => ({ id: f.id, name: f.originalName })),
+            replyToMessageId: replyingToMessage?.id
+          });
+
+          playSound(SoundType.MESSAGE_SENT);
+        } catch (error) {
+          toast.error(getTrpcError(error, t('failedSendMessage')));
+          return false;
         }
-      }, TYPING_MS),
-    [channelId]
-  );
 
-  const setNewMessageHandler = useCallback(
-    (value: string) => {
-      setNewMessage(value);
-      setDraftMessage(draftChannelKey, value);
-    },
-    [setNewMessage, draftChannelKey]
-  );
+        setNewMessageHandler('');
+        setReplyingToMessage(undefined);
 
-  const onSend = useCallback(
-    async (message: string, files: { id: string }[]) => {
-      sendTypingSignal.cancel();
+        return true;
+      },
+      [
+        channelId,
+        sendTypingSignal,
+        setNewMessageHandler,
+        t,
+        replyingToMessage?.id
+      ]
+    );
 
-      const trpc = getTRPCClient();
+    const onSaveEdit = useCallback(
+      async (
+        messageToEdit: TJoinedMessage,
+        content: string,
+        files: TMessageComposeFile[]
+      ) => {
+        const nextContent = prepareMessageHtml(content);
 
-      try {
-        await trpc.messages.send.mutate({
-          content: prepareMessageHtml(message),
-          channelId,
-          files: files.map((f) => f.id),
-          replyToMessageId: replyingToMessage?.id
-        });
+        if (!hasEditedMessageChanges(messageToEdit, content, files)) {
+          restoreDraftAfterEdit();
+          return true;
+        }
 
-        playSound(SoundType.MESSAGE_SENT);
-      } catch (error) {
-        toast.error(getTrpcError(error, t('failedSendMessage')));
-        return false;
-      }
+        const trpc = getTRPCClient();
 
-      setNewMessageHandler('');
-      setReplyingToMessage(undefined);
+        try {
+          await trpc.messages.edit.mutate({
+            messageId: messageToEdit.id,
+            content: nextContent,
+            files
+          });
 
-      return true;
-    },
-    [
-      channelId,
-      sendTypingSignal,
-      setNewMessageHandler,
-      t,
-      replyingToMessage?.id
-    ]
-  );
+          toast.success(t('messageEdited'));
+        } catch (error) {
+          toast.error(getTrpcError(error, t('failedEditMessage')));
+          return false;
+        }
 
-  const onReplyMessageSelect = useCallback((message: TJoinedMessage) => {
-    setReplyingToMessage(message);
-  }, []);
+        restoreDraftAfterEdit();
 
-  if (!channelCan(ChannelPermission.VIEW_CHANNEL) || loading) {
-    return <TextSkeleton />;
-  }
+        return true;
+      },
+      [restoreDraftAfterEdit, t]
+    );
 
-  return (
-    <>
-      {fetching && (
-        <div className="absolute top-0 left-0 right-0 h-12 z-10 flex items-center justify-center">
-          <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full px-4 py-2 shadow-lg">
-            <Spinner size="xs" />
-            <span className="text-sm text-muted-foreground">
-              Fetching older messages...
-            </span>
+    const onReplyMessageSelect = useCallback(
+      (message: TJoinedMessage) => {
+        if (editingMessage) {
+          restoreDraftAfterEdit();
+        }
+
+        setReplyingToMessage(message);
+      },
+      [editingMessage, restoreDraftAfterEdit]
+    );
+
+    if (!channelCan(ChannelPermission.VIEW_CHANNEL)) {
+      return null;
+    }
+
+    return (
+      <>
+        <TextTopbar
+          channelId={channelId}
+          onClose={onClose}
+          onToggleMembers={onToggleMembers}
+        />
+
+        <div
+          ref={containerRef}
+          onScroll={onScroll}
+          onLoadCapture={onAsyncContentLoaded}
+          data-messages-container
+          data-channel-id={channelId}
+          className="flex-1 overflow-y-auto overflow-x-hidden px-2 pt-2 pb-7"
+        >
+          <div className="space-y-4">
+            {groupedMessages.map((group) => (
+              <MessagesGroup
+                key={group.key}
+                group={group.messages}
+                onReplyMessageSelect={onReplyMessageSelect}
+                onEditMessageSelect={startEditingMessage}
+                replyTargetMessageId={replyingToMessage?.id}
+                activeThreadMessageId={activeThreadMessageId}
+              />
+            ))}
           </div>
         </div>
-      )}
 
-      <TextTopbar
-        onScrollToMessage={scrollToMessage}
-        channelId={channelId}
-        onClose={onClose}
-      />
+        <ChatInputDivider
+          composeContainerRef={composeContainerRef}
+          scrollToBottom={scrollToBottom}
+          isAtBottom={isAtBottom}
+          storageKey={LocalStorageKey.CHAT_INPUT_HEIGHT_VH}
+          defaultMaxHeightVh={DEFAULT_MAX_HEIGHT_VH}
+        />
 
-      <div
-        ref={containerRef}
-        onScroll={onScroll}
-        onLoadCapture={onAsyncContentLoaded}
-        data-messages-container
-        className="flex-1 overflow-y-auto overflow-x-hidden px-2 pt-2 pb-7 animate-in fade-in duration-500"
-      >
-        <div className="space-y-4">
-          {groupedMessages.map((group) => (
-            <MessagesGroup
-              key={group.key}
-              group={group.messages}
-              onReplyMessageSelect={onReplyMessageSelect}
-              replyTargetMessageId={replyingToMessage?.id}
-              activeThreadMessageId={activeThreadMessageId}
-              editingMessageId={editingMessageId}
-              onEditComplete={handleEditComplete}
-            />
-          ))}
-        </div>
-      </div>
-
-      <ChatInputDivider
-        composeContainerRef={composeContainerRef}
-        scrollToBottom={scrollToBottom}
-        isAtBottom={isAtBottom}
-        storageKey={LocalStorageKey.CHAT_INPUT_HEIGHT_VH}
-        defaultMaxHeightVh={DEFAULT_MAX_HEIGHT_VH}
-      />
-
-      <MessageCompose
-        ref={composeRef}
-        composeContainerRef={composeContainerRef}
-        channelId={channelId}
-        message={newMessage}
-        onMessageChange={setNewMessageHandler}
-        onSend={onSend}
-        onTyping={sendTypingSignal}
-        typingUsers={typingUsers}
-        showPluginSlot
-        onCancelReply={() => setReplyingToMessage(undefined)}
-        replyTarget={replyTarget}
-        onArrowUp={handleArrowUpEdit}
-        onResize={onComposeResize}
-      />
-    </>
-  );
-});
+        <MessageCompose
+          ref={composeRef}
+          composeContainerRef={composeContainerRef}
+          channelId={channelId}
+          message={newMessage}
+          onMessageChange={setNewMessageHandler}
+          onSend={onSend}
+          editingMessage={editingMessage}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={restoreDraftAfterEdit}
+          onTyping={sendTypingSignal}
+          typingUsers={typingUsers}
+          showPluginSlot
+          onCancelReply={() => setReplyingToMessage(undefined)}
+          replyTarget={replyTarget}
+          onArrowUp={handleArrowUpEdit}
+          onResize={onComposeResize}
+        />
+      </>
+    );
+  }
+);
 
 export { TextChannel };

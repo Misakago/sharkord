@@ -1,11 +1,10 @@
-import { Permission } from '@sharkord/shared';
+import { Permission } from '@mikotord/shared';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { config } from '../../config';
 import { db } from '../../db';
 import { publishMessage } from '../../db/publishers';
 import { assertDmChannel } from '../../db/queries/dms';
-import { getEmojiFileIdByEmojiName } from '../../db/queries/emojis';
 import { getReaction } from '../../db/queries/messages';
 import { messageReactions, messages } from '../../db/schema';
 import { invariant } from '../../utils/invariant';
@@ -45,13 +44,11 @@ const toggleMessageReactionRoute = rateLimitedProcedure(protectedProcedure, {
     );
 
     if (!reaction) {
-      const emojiFileId = await getEmojiFileIdByEmojiName(input.emoji);
-
       await db.insert(messageReactions).values({
         messageId: input.messageId,
         emoji: input.emoji,
         userId: ctx.user.id,
-        fileId: emojiFileId,
+        fileId: null,
         createdAt: Date.now()
       });
     } else {

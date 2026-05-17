@@ -1,5 +1,5 @@
-import type { TPluginInfo } from '@sharkord/shared';
-import { Button, Card, CardContent, Input } from '@sharkord/ui';
+import type { TPluginInfo } from '@mikotord/shared';
+import { Button, Card, CardContent, Input } from '@mikotord/ui';
 import { AlertCircle, Package, RefreshCw, Search } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

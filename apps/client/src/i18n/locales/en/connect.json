@@ -4,13 +4,13 @@
   "passwordLabel": "Password",
   "autoLoginLabel": "Login automatically",
   "insecureTitle": "Insecure Connection",
-  "insecureDesc": "You are accessing the server over an insecure connection (HTTP). By default, browsers block access to media devices such as your camera and microphone on insecure origins. This means that you won't be able to use video or voice chat features while connected to the server over HTTP. If you are the server administrator, you can set up HTTPS by following the instructions in the documentation.",
+  "insecureDesc": "You are accessing the server over an insecure connection (HTTP). Your login, messages, and file transfers may not be protected in transit. If you administer this server, set up HTTPS by following the documentation.",
   "connectBtn": "Connect",
   "registrationDisabled": "New user registrations are currently disabled. If you do not have an account yet, you need to be invited by an existing user to join this server.",
   "invitedTitle": "You were invited to join this server",
   "inviteCode": "Invite code: {{code}}",
   "connectError": "Could not connect: {{message}}",
   "loggingInAutomatically": "Logging in automatically...",
-  "loadingApp": "Loading Sharkord",
+  "loadingApp": "Loading Mikotord",
   "loadingPlugins": "Loading Plugins"
 }

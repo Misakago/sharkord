@@ -1,8 +1,4 @@
-// const MARKETPLACE_REGISTRY_URL =
-//   'https://cdn.jsdelivr.net/gh/Sharkord/plugins@latest/plugins.json';
-
-const MARKETPLACE_REGISTRY_URL =
-  'https://raw.githubusercontent.com/Sharkord/plugins/refs/heads/main/plugins.json?raw=true';
+const MARKETPLACE_REGISTRY_URL = '';
 
 type TMarketplacePlugin = {
   id: string;

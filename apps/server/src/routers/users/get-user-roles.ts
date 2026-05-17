@@ -1,4 +1,4 @@
-import type { Permission, TJoinedRole } from '@sharkord/shared';
+import type { Permission, TJoinedRole } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { rolePermissions, roles, userRoles } from '../../db/schema';

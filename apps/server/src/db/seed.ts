@@ -19,7 +19,7 @@ import {
   type TIRole,
   type TISettings,
   type TIUser
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { randomUUIDv7 } from 'bun';
 import chalk from 'chalk';
 import { logger } from '../logger';
@@ -47,9 +47,8 @@ const seedDatabase = async () => {
   const originalToken = IS_DEVELOPMENT ? 'dev' : randomUUIDv7();
 
   const initialSettings: TISettings = {
-    name: 'sharkord Server',
-    description:
-      'This is the default Sharkord server description. Change me in the server settings!',
+    name: 'Server',
+    description: '',
     password: '',
     onlyAskForPasswordOnFirstJoin: false,
     serverId: Bun.randomUUIDv7(),
@@ -81,11 +80,6 @@ const seedDatabase = async () => {
       name: 'Text Channels',
       position: 1,
       createdAt: firstStart
-    },
-    {
-      name: 'Voice Channels',
-      position: 2,
-      createdAt: firstStart
     }
   ];
 
@@ -104,22 +98,6 @@ const seedDatabase = async () => {
       position: 1,
       categoryId: 1,
       topic: 'General text channel 2',
-      createdAt: firstStart
-    },
-    {
-      type: ChannelType.VOICE,
-      name: 'General Voice',
-      position: 0,
-      categoryId: 2,
-      topic: 'General voice channel',
-      createdAt: firstStart
-    },
-    {
-      type: ChannelType.VOICE,
-      name: 'General Voice 2',
-      position: 1,
-      categoryId: 2,
-      topic: 'General voice channel 2',
       createdAt: firstStart
     }
   ];
@@ -144,13 +122,24 @@ const seedDatabase = async () => {
   const initialUsers: TIUser[] = [
     {
       identity: await sha256(randomUUIDv7()),
-      name: 'Sharkord',
+      name: 'Server',
       avatarId: null,
-      password: 'sharkord',
+      password: 'mikotord',
       bannerId: null,
-      bio: 'Hey, I am Sharkord!',
+      bio: '',
       bannerColor:
         'linear-gradient(90deg, rgba(67,49,215,1) 30%, rgba(182,1,116,1) 100%)',
+      createdAt: firstStart
+    },
+    {
+      identity: 'agent:claude-code',
+      name: 'ClaudeCode',
+      avatarId: null,
+      password: await Bun.password.hash(randomUUIDv7()),
+      bannerId: null,
+      bio: 'Local Claude Code agent',
+      bannerColor:
+        'linear-gradient(135deg, rgba(34,197,94,0.9), rgba(14,165,233,0.9))',
       createdAt: firstStart
     }
   ];
@@ -158,7 +147,7 @@ const seedDatabase = async () => {
   const initialMessages: TIMessage[] = [
     {
       channelId: 1,
-      content: '<p>Welcome to sharkord!</p>',
+      content: '<p>Welcome to mikotord!</p>',
       metadata: null,
       userId: 1,
       createdAt: firstStart

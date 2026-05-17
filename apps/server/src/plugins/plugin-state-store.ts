@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sharkord/shared';
+import { getErrorMessage } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { pluginData } from '../db/schema';

@@ -1,20 +1,12 @@
 import { assertNotificationsPermission } from '@/helpers/assert-notifications-permission';
 import { getFileUrl, getUrlFromServer } from '@/helpers/get-file-url';
-import {
-  LocalStorageKey,
-  setLocalStorageItem,
-  setLocalStorageItemBool
-} from '@/helpers/storage';
+import { LocalStorageKey, setLocalStorageItemBool } from '@/helpers/storage';
 import type { TMessageJumpToTarget } from '@/types';
-import type { TServerInfo } from '@sharkord/shared';
+import type { TServerInfo } from '@mikotord/shared';
 import { toast } from 'sonner';
-import { markChannelAsRead, setInfo } from '../server/actions';
+import { setInfo } from '../server/actions';
 import { store } from '../store';
-import {
-  pluginSlotDebugSelector,
-  voiceChatChannelIdSelector,
-  voiceChatSidebarDataSelector
-} from './selectors';
+import { pluginSlotDebugSelector } from './selectors';
 import { appSliceActions } from './slice';
 
 export const setAppLoading = (loading: boolean) =>
@@ -25,6 +17,8 @@ export const setIsAutoConnecting = (isAutoConnecting: boolean) =>
 
 export const setPluginsLoading = (loading: boolean) =>
   store.dispatch(appSliceActions.setLoadingPlugins(loading));
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const setOrCreateMeta = (name: string, content: string) => {
   let el = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
@@ -50,19 +44,31 @@ const setOrCreateLink = (rel: string, href: string) => {
   el.href = href;
 };
 
+const removeLinks = (rel: string) => {
+  document
+    .querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`)
+    .forEach((el) => el.remove());
+};
+
 const applyServerBranding = (info: TServerInfo) => {
   document.title = info.name;
 
-  const logoUrl = info.logo
-    ? getFileUrl(info.logo)
-    : `${getUrlFromServer()}/favicon.ico`;
+  if (info.logo) {
+    const logoUrl = getFileUrl(info.logo);
 
-  setOrCreateLink('icon', logoUrl);
-  setOrCreateLink('apple-touch-icon', logoUrl);
+    setOrCreateLink('icon', logoUrl);
+    setOrCreateLink('apple-touch-icon', logoUrl);
+  } else {
+    removeLinks('icon');
+    removeLinks('apple-touch-icon');
+  }
+
   setOrCreateMeta('apple-mobile-web-app-title', info.name);
 };
 
-export const fetchServerInfo = async (): Promise<TServerInfo | undefined> => {
+export const fetchServerInfo = async ({
+  silent = false
+}: { silent?: boolean } = {}): Promise<TServerInfo | undefined> => {
   try {
     const url = getUrlFromServer();
     const response = await fetch(`${url}/info`);
@@ -75,12 +81,23 @@ export const fetchServerInfo = async (): Promise<TServerInfo | undefined> => {
 
     return data;
   } catch (error) {
-    console.error('Error fetching server info:', error);
+    if (!silent) {
+      console.error('Error fetching server info:', error);
+    }
   }
 };
 
 export const loadApp = async () => {
-  const info = await fetchServerInfo();
+  let info = await fetchServerInfo();
+
+  if (!info && import.meta.env.MODE === 'development') {
+    console.info('Server is not ready yet. Retrying app load...');
+
+    while (!info) {
+      await sleep(500);
+      info = await fetchServerInfo({ silent: true });
+    }
+  }
 
   if (!info) {
     console.error('Failed to load server info during app load');
@@ -119,6 +136,21 @@ export const closeThreadSidebar = () =>
     })
   );
 
+export const openClaudeCodePanel = () =>
+  store.dispatch(appSliceActions.setClaudeCodePanelOpen(true));
+
+export const closeClaudeCodePanel = () =>
+  store.dispatch(appSliceActions.setClaudeCodePanelOpen(false));
+
+export const openClaudeCodeHistoryPanel = () =>
+  store.dispatch(appSliceActions.setClaudeCodeHistoryOpen(true));
+
+export const closeClaudeCodeHistoryPanel = () =>
+  store.dispatch(appSliceActions.setClaudeCodeHistoryOpen(false));
+
+export const setClaudeCodeTerminalControl = (enabled: boolean) =>
+  store.dispatch(appSliceActions.setClaudeCodeTerminalControl(enabled));
+
 export const resetApp = () => {
   store.dispatch(
     appSliceActions.setModViewOpen({
@@ -133,6 +165,9 @@ export const resetApp = () => {
       channelId: undefined
     })
   );
+  store.dispatch(appSliceActions.setClaudeCodePanelOpen(false));
+  store.dispatch(appSliceActions.setClaudeCodeHistoryOpen(false));
+  store.dispatch(appSliceActions.setClaudeCodeTerminalControl(false));
 };
 
 export const setAutoJoinLastChannel = (autoJoin: boolean) => {
@@ -192,57 +227,6 @@ export const setBrowserNotificationsForReplies = async (enabled: boolean) => {
 export const setMessageJumpTarget = (
   payload: TMessageJumpToTarget | undefined
 ) => store.dispatch(appSliceActions.setMessageJumpTarget(payload));
-
-export const openVoiceChatSidebar = (channelId: number) => {
-  store.dispatch(
-    appSliceActions.setVoiceChatSidebar({ open: true, channelId })
-  );
-
-  markChannelAsRead(channelId);
-  setLocalStorageItem(
-    LocalStorageKey.VOICE_CHAT_SIDEBAR_CHANNEL_ID,
-    channelId.toString()
-  );
-  setLocalStorageItemBool(LocalStorageKey.VOICE_CHAT_SIDEBAR_STATE, true);
-};
-
-export const closeVoiceChatSidebar = () => {
-  const state = store.getState();
-  const voiceChatChannelId = voiceChatChannelIdSelector(state);
-
-  store.dispatch(
-    appSliceActions.setVoiceChatSidebar({
-      open: false,
-      channelId: voiceChatChannelId
-    })
-  );
-
-  setLocalStorageItemBool(LocalStorageKey.VOICE_CHAT_SIDEBAR_STATE, false);
-};
-
-export const toggleVoiceChatSidebar = (channelId: number) => {
-  const state = store.getState();
-  const { isOpen, channelId: voiceChatChannelId } =
-    voiceChatSidebarDataSelector(state);
-
-  const isSameChannel = voiceChatChannelId === channelId;
-
-  if (isOpen && isSameChannel) {
-    closeVoiceChatSidebar();
-  } else {
-    openVoiceChatSidebar(channelId);
-  }
-};
-
-export const assertVoiceChatClose = (channelId: number) => {
-  const state = store.getState();
-  const { isOpen, channelId: voiceChatChannelId } =
-    voiceChatSidebarDataSelector(state);
-
-  if (isOpen && voiceChatChannelId === channelId) {
-    closeVoiceChatSidebar();
-  }
-};
 
 export const togglePluginSlotDebug = () => {
   const state = store.getState();

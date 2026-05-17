@@ -1,4 +1,4 @@
-import { FileSaveType, StorageOverflowAction } from '@sharkord/shared';
+import { FileSaveType, StorageOverflowAction } from '@mikotord/shared';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import fs from 'fs/promises';

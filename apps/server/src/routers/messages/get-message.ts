@@ -1,4 +1,4 @@
-import { ChannelPermission } from '@sharkord/shared';
+import { ChannelPermission } from '@mikotord/shared';
 import { z } from 'zod';
 import { assertDmChannel } from '../../db/queries/dms';
 import { getMessage } from '../../db/queries/messages';

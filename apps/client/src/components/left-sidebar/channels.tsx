@@ -2,19 +2,15 @@ import { TypingDots } from '@/components/typing-dots';
 import {
   useChannelById,
   useChannelsByCategoryId,
-  useCurrentVoiceChannelId,
   useSelectedChannelId
 } from '@/features/server/channels/hooks';
 import {
   useCan,
   useChannelCan,
-  useHasSharingScreenUsers,
   useHasUnreadMentions,
   useTypingUsersByChannelId,
-  useUnreadMessagesCount,
-  useVoiceUsersByChannelId
+  useUnreadMessagesCount
 } from '@/features/server/hooks';
-import { useVoiceChannelExternalStreamsList } from '@/features/server/voice/hooks';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import {
@@ -37,96 +33,14 @@ import {
   type TChannel,
   TestId,
   getTrpcError
-} from '@sharkord/shared';
-import { Hash, Volume2 } from 'lucide-react';
+} from '@mikotord/shared';
+import { Hash } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ChannelContextMenu } from '../context-menus/channel';
 import { UnreadCount } from '../unread-count';
-import { ExternalStream } from './external-stream';
 import { useSelectChannel } from './hooks';
-import { VoiceUser } from './voice-user';
-import { Waveform } from './waveform';
-
-type TVoiceProps = Omit<TItemWrapperProps, 'children'> & {
-  channel: TChannel;
-};
-
-const Voice = memo(
-  ({
-    channel,
-    isSelected,
-    ...props
-  }: TVoiceProps & { isSelected: boolean }) => {
-    const users = useVoiceUsersByChannelId(channel.id);
-    const externalStreams = useVoiceChannelExternalStreamsList(channel.id);
-    const unreadCount = useUnreadMessagesCount(channel.id);
-    const hasUnreadMentions = useHasUnreadMentions(channel.id);
-    const currentVoiceChannelId = useCurrentVoiceChannelId();
-    const someoneIsSharingScreen = useHasSharingScreenUsers(channel.id);
-
-    const isVoiceActive = users.length > 0 || externalStreams.length > 0;
-    const isOwnChannel = currentVoiceChannelId === channel.id;
-
-    return (
-      <>
-        <ItemWrapper
-          {...props}
-          isSelected={isSelected}
-          className={cn(props.className, {
-            'text-blue-500':
-              someoneIsSharingScreen && (isOwnChannel || isSelected),
-            'text-green-500':
-              (isOwnChannel && !someoneIsSharingScreen) ||
-              (isSelected &&
-                !someoneIsSharingScreen &&
-                !isOwnChannel &&
-                isVoiceActive)
-          })}
-        >
-          {isVoiceActive ? (
-            <Waveform isScreenSharing={someoneIsSharingScreen} />
-          ) : (
-            <Volume2 className="h-4 w-4" />
-          )}
-
-          <span className="flex-1 truncate">{channel.name}</span>
-
-          {unreadCount > 0 && (
-            <UnreadCount count={unreadCount} hasMention={hasUnreadMentions} />
-          )}
-        </ItemWrapper>
-        {channel.type === 'VOICE' && (
-          <div
-            className="ml-6 space-y-1 mt-1"
-            onContextMenu={(e) => e.stopPropagation()}
-          >
-            {users.map((user) => (
-              <VoiceUser
-                key={user.id}
-                userId={user.id}
-                user={user}
-                isOwnChannel={isOwnChannel}
-              />
-            ))}
-            {externalStreams.map((stream) => (
-              <ExternalStream
-                key={stream.streamId}
-                title={stream.title}
-                tracks={stream.tracks}
-                pluginId={stream.pluginId}
-                streamKey={stream.key}
-                avatarUrl={stream.avatarUrl}
-                isOwnChannel={isOwnChannel}
-              />
-            ))}
-          </div>
-        )}
-      </>
-    );
-  }
-);
 
 type TTextProps = Omit<TItemWrapperProps, 'children'> & {
   channel: TChannel;
@@ -180,7 +94,7 @@ const ItemWrapper = memo(
         data-testid={TestId.CHANNEL_ITEM}
         style={style}
         className={cn(
-          'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground select-none cursor-pointer',
+          'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground select-none cursor-pointer',
           {
             'bg-accent text-accent-foreground': isSelected,
             'cursor-default opacity-50 hover:bg-transparent hover:text-muted-foreground':
@@ -246,18 +160,6 @@ const Channel = memo(({ channelId, isSelected, onClick }: TChannelProps) => {
               dragHandleProps={{ ...attributes, ...listeners }}
             />
           )}
-          {channel.type === 'VOICE' && (
-            <Voice
-              channel={channel}
-              isSelected={isSelected}
-              onClick={onClick}
-              dragHandleProps={{ ...attributes, ...listeners }}
-              disabled={
-                !channelCan(ChannelPermission.JOIN) ||
-                !can(Permission.JOIN_VOICE_CHANNELS)
-              }
-            />
-          )}
         </div>
       </ChannelContextMenu>
     </div>
@@ -270,7 +172,9 @@ type TChannelsProps = {
 
 const Channels = memo(({ categoryId }: TChannelsProps) => {
   const { t } = useTranslation('sidebar');
-  const channels = useChannelsByCategoryId(categoryId);
+  const channels = useChannelsByCategoryId(categoryId).filter(
+    (channel) => channel.type === 'TEXT'
+  );
   const selectedChannelId = useSelectedChannelId();
   const can = useCan();
   const channelIds = useMemo(

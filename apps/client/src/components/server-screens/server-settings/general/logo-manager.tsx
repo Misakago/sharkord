@@ -2,8 +2,8 @@ import { ImagePicker } from '@/components/image-picker';
 import { uploadImage } from '@/helpers/upload-file';
 import { useFilePicker } from '@/hooks/use-file-picker';
 import { getTRPCClient } from '@/lib/trpc';
-import type { TFile } from '@sharkord/shared';
-import { Group } from '@sharkord/ui';
+import type { TFile } from '@mikotord/shared';
+import { Group } from '@mikotord/ui';
 import { memo, useCallback } from 'react';
 import { toast } from 'sonner';
 
@@ -53,7 +53,7 @@ const LogoManager = memo(({ logo, refetch }: TLogoManagerProps) => {
   return (
     <Group
       label="Logo"
-      description="Square image is recommended. If your image is not perfectly square, the PWA icons will fall back to the default Sharkord icon."
+      description="Square image is recommended. If your image is not perfectly square, the PWA icons will fall back to the default Mikotord icon."
     >
       <ImagePicker
         image={logo}

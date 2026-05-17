@@ -50,7 +50,20 @@ const sanitizeFileName = (name: string): string | null => {
     return null;
   }
 
-  const normalized = name.replace(/\\/g, '/');
+  let decodedName = name;
+
+  try {
+    decodedName = decodeURIComponent(name);
+  } catch {
+    // Support legacy/raw header values that are not URI encoded.
+  }
+
+  // reject null bytes which can truncate paths on some
+  if (decodedName.includes('\0')) {
+    return null;
+  }
+
+  const normalized = decodedName.replace(/\\/g, '/');
 
   // strip any directory components (e.g. "../../etc/passwd" -> "passwd")
   const baseName = path.basename(normalized);

@@ -1,4 +1,4 @@
-import { ActivityLogType, Permission } from '@sharkord/shared';
+import { ActivityLogType, Permission } from '@mikotord/shared';
 import { db } from '../../db';
 import { publishRole } from '../../db/publishers';
 import { roles } from '../../db/schema';

@@ -1,17 +1,16 @@
 import { useDateLocale } from '@/hooks/use-date-locale';
 import {
   format,
-  formatDistanceToNow,
-  isFuture,
   isWithinInterval,
+  isFuture,
   subHours,
   type Locale
 } from 'date-fns';
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-const ONE_MINUTE = 60_000;
-const ONE_HOUR = 60 * ONE_MINUTE;
+const ONE_HOUR = 60 * 60 * 1000;
 const DEFAULT_FORMAT = 'PPpp'; // eg: 12 August 2022, 14:30
+const HOUR_MINUTE_FORMAT = 'HH:mm';
 
 type TRelativeTimeProps = {
   date: Date | string;
@@ -23,9 +22,9 @@ const getFormattedTime = (d: Date, dateLocale: Locale): string => {
   const now = new Date();
   const twentyFourHoursAgo = subHours(now, 24);
 
-  // past 24 hours show relative time, eg: 5 minutes ago
+  // past 24 hours show exact 24-hour time, eg: 14:35
   if (isWithinInterval(d, { start: twentyFourHoursAgo, end: now })) {
-    return formatDistanceToNow(d, { addSuffix: true, locale: dateLocale });
+    return format(d, HOUR_MINUTE_FORMAT, { locale: dateLocale });
   }
 
   return format(d, DEFAULT_FORMAT, { locale: dateLocale });
@@ -40,13 +39,7 @@ const getUpdateInterval = (date: Date): number | null => {
     return null; // no updates needed
   }
 
-  // less than 1 hour, rerender every minute
-  if (diffInMs < ONE_HOUR) {
-    return ONE_MINUTE;
-  }
-
-  // 1-24 hours, rerender every hour
-  return ONE_HOUR;
+  return null;
 };
 
 const RelativeTime = memo(

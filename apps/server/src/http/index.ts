@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sharkord/shared';
+import { getErrorMessage } from '@mikotord/shared';
 import chalk from 'chalk';
 import http from 'http';
 import z from 'zod';
@@ -20,6 +20,10 @@ import { pluginsComponentsRouteHandler } from './plugins-components';
 import { publicRouteHandler } from './public';
 import { uploadFileRouteHandler } from './upload';
 import { HttpValidationError } from './utils';
+import {
+  claudeCodeMessageLookupRouteHandler,
+  claudeCodeStopHookRouteHandler
+} from './claude-code-hook';
 
 type RouteContext = {
   info: ReturnType<typeof getWsInfo>;
@@ -44,6 +48,8 @@ const routeHandlers: Partial<
     },
     prefix: {
       '/public': (req, res) => publicRouteHandler(req, res),
+      '/claude-code/messages': (req, res) =>
+        claudeCodeMessageLookupRouteHandler(req, res),
       '/plugin-components': (req, res) =>
         pluginsComponentsRouteHandler(req, res),
       '/plugin-bundle': (req, res) => pluginBundleRouteHandler(req, res)
@@ -52,13 +58,17 @@ const routeHandlers: Partial<
   POST: {
     exact: {
       '/upload': (req, res) => uploadFileRouteHandler(req, res),
-      '/login': (req, res) => loginRouteHandler(req, res)
+      '/login': (req, res) => loginRouteHandler(req, res),
+      '/claude-code/hooks/stop': (req, res) =>
+        claudeCodeStopHookRouteHandler(req, res)
     },
     prefix: {}
   }
 };
 
 // this http server implementation is temporary and will be moved to bun server later when things are more stable
+
+const LISTEN_HOST = '0.0.0.0';
 
 const createHttpServer = async (port: number = config.server.port) => {
   return new Promise<http.Server>((resolve) => {
@@ -151,7 +161,7 @@ const createHttpServer = async (port: number = config.server.port) => {
     );
 
     server.on('listening', () => {
-      logger.debug('HTTP server is listening on port %d', port);
+      logger.debug('HTTP server is listening on %s:%d', LISTEN_HOST, port);
       resolve(server);
     });
 
@@ -160,7 +170,7 @@ const createHttpServer = async (port: number = config.server.port) => {
       process.exit(0);
     });
 
-    server.listen(port);
+    server.listen(port, LISTEN_HOST);
   });
 };
 

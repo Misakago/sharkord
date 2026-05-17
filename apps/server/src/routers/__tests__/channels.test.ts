@@ -1,4 +1,4 @@
-import { ChannelPermission, ChannelType } from '@sharkord/shared';
+import { ChannelPermission, ChannelType } from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
 import { initTest } from '../../__tests__/helpers';
 import { getChannelsReadStatesForUser } from '../../db/queries/channels';
@@ -112,22 +112,16 @@ describe('channels router', () => {
     expect(channel.categoryId).toBe(1);
   });
 
-  test('should create a new voice channel', async () => {
+  test('should reject voice channel creation', async () => {
     const { caller } = await initTest();
 
-    await caller.channels.add({
-      type: ChannelType.VOICE,
-      name: 'voice-lounge',
-      categoryId: 1
-    });
-
-    const channel = await caller.channels.get({
-      channelId: 4
-    });
-
-    expect(channel).toBeDefined();
-    expect(channel.name).toBe('voice-lounge');
-    expect(channel.type).toBe(ChannelType.VOICE);
+    await expect(
+      caller.channels.add({
+        type: 'VOICE' as ChannelType,
+        name: 'voice-lounge',
+        categoryId: 1
+      })
+    ).rejects.toThrow();
   });
 
   test('should get existing channel', async () => {

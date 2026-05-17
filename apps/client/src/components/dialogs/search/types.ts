@@ -1,4 +1,4 @@
-import type { TJoinedMessage } from '@sharkord/shared';
+import type { TJoinedMessage } from '@mikotord/shared';
 
 export type TSearchResultMessage = TJoinedMessage & {
   plainContent: string;
@@ -22,6 +22,7 @@ export type TSearchResultFile = {
     _accessTokenExpiresAt?: number;
   };
   messageId: number;
+  parentMessageId: number | null;
   channelId: number;
   messageContent: string | null;
   messageCreatedAt: number;

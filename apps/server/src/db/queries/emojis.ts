@@ -1,4 +1,4 @@
-import type { TJoinedEmoji } from '@sharkord/shared';
+import type { TJoinedEmoji } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '..';
 import { attachFileToken } from '../../helpers/files-crypto';

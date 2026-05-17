@@ -58,7 +58,6 @@ export type TCommandArg = {
 
 export type TInvokerContext = {
   userId: number;
-  currentVoiceChannelId?: number;
 };
 
 export type TCommandContract = Record<

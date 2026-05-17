@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Languages } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';

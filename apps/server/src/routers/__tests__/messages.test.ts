@@ -1,4 +1,4 @@
-import { ChannelPermission, Permission } from '@sharkord/shared';
+import { ChannelPermission, Permission } from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
 import { initTest, uploadFile } from '../../__tests__/helpers';
@@ -250,9 +250,36 @@ describe('messages router', () => {
     expect(ownerResult.files.length).toBeGreaterThan(0);
   });
 
-  test('should not return DM matches even for participants', async () => {
+  test('should search DM messages and files for participants only', async () => {
     const { caller: userA } = await initTest(3);
     const { caller: outsider } = await initTest(2);
+
+    const dmMessages = await userA.messages.get({
+      channelId: 3,
+      cursor: null,
+      limit: 10
+    });
+    const dmMessageId = dmMessages.messages[0]!.id;
+    const now = Date.now();
+    const [insertedFile] = await tdb
+      .insert(files)
+      .values({
+        name: `dm-search-${now}.txt`,
+        originalName: 'hello user b notes.txt',
+        md5: `dm-search-md5-${now}`,
+        userId: 3,
+        size: 128,
+        mimeType: 'text/plain',
+        extension: 'txt',
+        createdAt: now
+      })
+      .returning({ id: files.id });
+
+    await tdb.insert(messageFiles).values({
+      messageId: dmMessageId,
+      fileId: insertedFile!.id,
+      createdAt: now
+    });
 
     const participantResult = await userA.messages.search({
       query: 'hello user b'
@@ -262,8 +289,10 @@ describe('messages router', () => {
       query: 'hello user b'
     });
 
-    expect(participantResult.messages.length).toBe(0);
-    expect(participantResult.files.length).toBe(0);
+    expect(participantResult.messages.length).toBeGreaterThan(0);
+    expect(participantResult.messages[0]?.channelIsDm).toBe(true);
+    expect(participantResult.files.length).toBeGreaterThan(0);
+    expect(participantResult.files[0]?.channelIsDm).toBe(true);
     expect(outsiderResult.messages.length).toBe(0);
     expect(outsiderResult.files.length).toBe(0);
   });
@@ -280,7 +309,8 @@ describe('messages router', () => {
       query: 'hello user b'
     });
 
-    expect(participantResult.messages.length).toBe(0);
+    expect(participantResult.messages.length).toBeGreaterThan(0);
+    expect(participantResult.messages[0]?.channelIsDm).toBe(true);
     expect(participantResult.files.length).toBe(0);
     expect(ownerResult.messages.length).toBe(0);
     expect(ownerResult.files.length).toBe(0);
@@ -438,64 +468,6 @@ describe('messages router', () => {
         query: 'any query'
       })
     ).rejects.toThrow('Search is disabled on this server');
-  });
-
-  test('should get pinned messages from channel', async () => {
-    const { caller } = await initTest();
-
-    const firstMessageId = await caller.messages.send({
-      channelId: 1,
-      content: 'Pinned message 1',
-      files: []
-    });
-
-    const secondMessageId = await caller.messages.send({
-      channelId: 1,
-      content: 'Not pinned message',
-      files: []
-    });
-
-    const thirdMessageId = await caller.messages.send({
-      channelId: 1,
-      content: 'Pinned message 2',
-      files: []
-    });
-
-    await caller.messages.togglePin({ messageId: firstMessageId });
-    await caller.messages.togglePin({ messageId: thirdMessageId });
-
-    const pinnedMessages = await caller.messages.getPinned({ channelId: 1 });
-
-    expect(Array.isArray(pinnedMessages)).toBe(true);
-    expect(pinnedMessages.length).toBe(2);
-    expect(pinnedMessages.every((message) => message.pinned)).toBe(true);
-    expect(
-      pinnedMessages.find((message) => message.id === secondMessageId)
-    ).toBe(undefined);
-  });
-
-  test('should throw when user lacks channel permissions (getPinned)', async () => {
-    const { caller: caller1 } = await initTest(1);
-    const { caller: caller2 } = await initTest(2);
-
-    await caller1.channels.update({
-      channelId: 1,
-      name: 'General',
-      topic: 'General text channel',
-      private: true
-    });
-
-    await caller1.channels.updatePermissions({
-      channelId: 1,
-      roleId: 2,
-      permissions: [ChannelPermission.SEND_MESSAGES]
-    });
-
-    await expect(
-      caller2.messages.getPinned({
-        channelId: 1
-      })
-    ).rejects.toThrow('Insufficient channel permissions');
   });
 
   test('should edit own message', async () => {
@@ -1087,6 +1059,34 @@ describe('messages router', () => {
     expect(names).toContain('one.txt');
     expect(names).toContain('two.txt');
     expect(names).not.toContain('three.txt');
+  });
+
+  test('should allow renaming attached files before sending', async () => {
+    const { caller, mockedToken } = await initTest();
+
+    const file = new File(['rename me'], 'original.txt', {
+      type: 'text/plain'
+    });
+
+    const response = await uploadFile(file, mockedToken);
+    const temp = (await response.json()) as { id: string };
+
+    const messageId = await caller.messages.send({
+      channelId: 1,
+      content: 'Message with renamed attachment',
+      files: [{ id: temp.id, name: 'renamed-document.md' }]
+    });
+
+    const messages = await caller.messages.get({
+      channelId: 1,
+      cursor: null,
+      limit: 50
+    });
+
+    const sentMessage = messages.messages.find((m) => m.id === messageId);
+
+    expect(sentMessage).toBeDefined();
+    expect(sentMessage!.files[0]!.originalName).toBe('renamed-document.txt');
   });
 
   test('should discard all attached files when max files per message is 0', async () => {
@@ -1886,50 +1886,6 @@ describe('messages router', () => {
     expect(messagesBefore.messages.length).toBe(1); // first dm is already mocked
     expect(messagesAfter.messages.length).toBe(2);
     expect(messagesAfter.messages[0]!.content).toBe('Hello in DM');
-  });
-
-  test('should throw when non-participant tries to pin a DM message', async () => {
-    // User 1 is not a participant in DM channel 3 (message id 2 is from seed)
-    const { caller } = await initTest(1);
-
-    await expect(caller.messages.togglePin({ messageId: 2 })).rejects.toThrow(
-      'You are not a participant in this DM channel'
-    );
-  });
-
-  test('should throw when pinning a DM message with DMs disabled', async () => {
-    const { caller } = await initTest(3);
-
-    // give user 3 PIN_MESSAGES permission via their default role
-    await tdb.insert(rolePermissions).values({
-      roleId: 2,
-      permission: Permission.PIN_MESSAGES,
-      createdAt: Date.now()
-    });
-
-    await tdb.update(settings).set({ directMessagesEnabled: false }).execute();
-
-    await expect(caller.messages.togglePin({ messageId: 2 })).rejects.toThrow(
-      'Direct messages are disabled on this server'
-    );
-  });
-
-  test('should throw when fetching pinned DM messages as non-participant', async () => {
-    const { caller } = await initTest(1);
-
-    await expect(caller.messages.getPinned({ channelId: 3 })).rejects.toThrow(
-      'You are not a participant in this DM channel'
-    );
-  });
-
-  test('should throw when fetching pinned DM messages with DMs disabled', async () => {
-    const { caller } = await initTest(3);
-
-    await tdb.update(settings).set({ directMessagesEnabled: false }).execute();
-
-    await expect(caller.messages.getPinned({ channelId: 3 })).rejects.toThrow(
-      'Direct messages are disabled on this server'
-    );
   });
 
   test('should throw when fetching a single DM message with DMs disabled', async () => {

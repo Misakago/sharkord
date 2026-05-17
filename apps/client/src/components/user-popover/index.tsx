@@ -11,13 +11,13 @@ import {
   Permission,
   UserStatus,
   getTrpcError
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import {
   IconButton,
   Popover,
   PopoverContent,
   PopoverTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { format } from 'date-fns';
 import { MessageSquare, ShieldCheck, Trash, UserCog } from 'lucide-react';
 import { memo, useCallback } from 'react';
@@ -85,12 +85,7 @@ const UserPopover = memo(({ userId, children }: TUserPopoverProps) => {
               }}
             />
           ) : (
-            <div
-              className="h-24 w-full rounded-t-md"
-              style={{
-                background: user.bannerColor || '#5865f2'
-              }}
-            />
+            <div className="h-24 w-full rounded-t-md bg-card" />
           )}
           <div className="absolute left-4 top-16">
             <UserAvatar

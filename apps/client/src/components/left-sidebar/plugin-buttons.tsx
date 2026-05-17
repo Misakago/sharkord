@@ -4,7 +4,7 @@ import {
   useFullscreenPluginIds,
   usePluginMetadata
 } from '@/features/server/plugins/hooks';
-import { cn, Tooltip } from '@sharkord/ui';
+import { cn, Tooltip } from '@mikotord/ui';
 import { Package, X } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { ImageWithFallback } from '../server-screens/server-settings/plugins/marketplace/image-with-fallback';
@@ -28,7 +28,7 @@ const PluginButton = memo(({ pluginId }: TPluginButtonsProps) => {
         type="button"
         onClick={handleClick}
         className={cn(
-          'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+          'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           isActive &&
             'bg-accent text-accent-foreground ring-1 ring-inset ring-primary/30'
         )}
@@ -36,7 +36,7 @@ const PluginButton = memo(({ pluginId }: TPluginButtonsProps) => {
         <ImageWithFallback
           src={pluginMetadata?.avatarUrl}
           alt={`${pluginId} icon`}
-          className="h-4 w-4 rounded-sm"
+          className="h-4 w-4 rounded-lg"
           iconFallback={<Package className="h-4 w-4 text-muted-foreground" />}
         />
         <span className="flex-1 text-left truncate">{pluginId}</span>

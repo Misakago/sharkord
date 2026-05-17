@@ -81,11 +81,10 @@ await zipDirectory(drizzleMigrationsPath, drizzleZipPath);
 console.log('Compiling server with Bun...');
 
 const targets: TTarget[] = [
-  { out: 'sharkord-linux-x64', target: 'bun-linux-x64' },
-  { out: 'sharkord-linux-arm64', target: 'bun-linux-arm64' },
-  { out: 'sharkord-windows-x64.exe', target: 'bun-windows-x64' },
-  { out: 'sharkord-macos-arm64', target: 'bun-darwin-arm64' }
-  // mediasoup doesn't support macOS x64
+  { out: 'mikotord-linux-x64', target: 'bun-linux-x64' },
+  { out: 'mikotord-linux-arm64', target: 'bun-linux-arm64' },
+  { out: 'mikotord-windows-x64.exe', target: 'bun-windows-x64' },
+  { out: 'mikotord-macos-arm64', target: 'bun-darwin-arm64' }
 ];
 
 for (const target of targets) {
@@ -102,4 +101,4 @@ const releaseInfo = await getVersionInfo(targets, outPath);
 await fs.writeFile(releasePath, JSON.stringify(releaseInfo, null, 2), 'utf8');
 await fs.rm(buildTempPath, { recursive: true, force: true });
 
-console.log('Sharkord built.');
+console.log('Mikotord built.');

@@ -1,20 +1,29 @@
-import { t } from '../../utils/trpc';
-import { addEmojiRoute } from './add-emoji';
-import { deleteEmojiRoute } from './delete-emoji';
-import {
-  onEmojiCreateRoute,
-  onEmojiDeleteRoute,
-  onEmojiUpdateRoute
-} from './events';
-import { getEmojisRoute } from './get-emojis';
-import { updateEmojiRoute } from './update-emoji';
+import { ServerEvents } from '@mikotord/shared';
+import { TRPCError } from '@trpc/server';
+import { protectedProcedure, t } from '../../utils/trpc';
+
+const customEmojiDisabledError = () =>
+  new TRPCError({
+    code: 'FORBIDDEN',
+    message: 'Custom emoji and GIF sticker packs are disabled.'
+  });
+
+const disabledMutation = protectedProcedure.mutation(() => {
+  throw customEmojiDisabledError();
+});
 
 export const emojisRouter = t.router({
-  add: addEmojiRoute,
-  update: updateEmojiRoute,
-  delete: deleteEmojiRoute,
-  getAll: getEmojisRoute,
-  onCreate: onEmojiCreateRoute,
-  onDelete: onEmojiDeleteRoute,
-  onUpdate: onEmojiUpdateRoute
+  add: disabledMutation,
+  update: disabledMutation,
+  delete: disabledMutation,
+  getAll: protectedProcedure.query(() => []),
+  onCreate: protectedProcedure.subscription(async ({ ctx }) =>
+    ctx.pubsub.subscribe(ServerEvents.EMOJI_CREATE)
+  ),
+  onDelete: protectedProcedure.subscription(async ({ ctx }) =>
+    ctx.pubsub.subscribe(ServerEvents.EMOJI_DELETE)
+  ),
+  onUpdate: protectedProcedure.subscription(async ({ ctx }) =>
+    ctx.pubsub.subscribe(ServerEvents.EMOJI_UPDATE)
+  )
 });

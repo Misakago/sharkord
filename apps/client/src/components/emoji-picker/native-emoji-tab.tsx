@@ -21,7 +21,7 @@ const CategoryBar = memo(
     onCategorySelect,
     hasRecentEmojis
   }: TCategoryBarProps) => (
-    <div className="flex gap-1 px-3 py-2 border-b bg-muted/30">
+    <div className="flex gap-1 px-3 py-2 border-b bg-accent">
       {EMOJI_CATEGORIES.map((category) => {
         if (category.id === 'recent' && !hasRecentEmojis) {
           return null;

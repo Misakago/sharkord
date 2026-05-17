@@ -1,6 +1,6 @@
 import { getTRPCClient } from '@/lib/trpc';
-import type { TJoinedRole } from '@sharkord/shared';
-import { Button, Card, CardContent, CardHeader, CardTitle } from '@sharkord/ui';
+import type { TJoinedRole } from '@mikotord/shared';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@mikotord/ui';
 import { Plus } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -46,7 +46,7 @@ const RolesList = memo(
             <button
               key={role.id}
               onClick={() => setSelectedRoleId(role.id)}
-              className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+              className={`flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm transition-colors hover:bg-accent ${
                 selectedRoleId === role.id ? 'bg-accent' : ''
               }`}
             >

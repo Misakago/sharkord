@@ -1,4 +1,4 @@
-import { ActivityLogType, Permission } from '@sharkord/shared';
+import { ActivityLogType, Permission } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
@@ -6,7 +6,6 @@ import { publishChannel } from '../../db/publishers';
 import { isDirectMessageChannel } from '../../db/queries/dms';
 import { channels } from '../../db/schema';
 import { enqueueActivityLog } from '../../queues/activity-log';
-import { VoiceRuntime } from '../../runtimes/voice';
 import { invariant } from '../../utils/invariant';
 import { protectedProcedure } from '../../utils/trpc';
 
@@ -36,12 +35,6 @@ const deleteChannelRoute = protectedProcedure
       code: 'NOT_FOUND',
       message: 'Channel not found'
     });
-
-    const runtime = VoiceRuntime.findById(removedChannel.id);
-
-    if (runtime) {
-      runtime.destroy();
-    }
 
     publishChannel(removedChannel.id, 'delete');
     enqueueActivityLog({

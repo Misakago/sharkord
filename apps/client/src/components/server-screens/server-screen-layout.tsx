@@ -1,4 +1,4 @@
-import { Button } from '@sharkord/ui';
+import { Button } from '@mikotord/ui';
 import { ChevronLeft } from 'lucide-react';
 import { memo } from 'react';
 

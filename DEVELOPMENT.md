@@ -3,7 +3,7 @@
 ## Requirements
 
 - [Bun](https://bun.sh/)
-- [Tmux](https://github.com/tmux/tmux) (optional)
+- Tmux (optional)
 
 ## Setup
 

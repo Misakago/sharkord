@@ -15,16 +15,6 @@ export enum ServerEvents {
   CHANNEL_READ_STATES_UPDATE = 'channelReadStatesUpdate',
   CHANNEL_READ_STATES_DELTA = 'channelReadStatesDelta',
 
-  USER_JOIN_VOICE = 'userJoinVoice',
-  USER_LEAVE_VOICE = 'userLeaveVoice',
-  USER_VOICE_STATE_UPDATE = 'userVoiceStateUpdate',
-
-  VOICE_ADD_EXTERNAL_STREAM = 'voiceAddExternalStream',
-  VOICE_UPDATE_EXTERNAL_STREAM = 'voiceUpdateExternalStream',
-  VOICE_REMOVE_EXTERNAL_STREAM = 'voiceRemoveExternalStream',
-  VOICE_NEW_PRODUCER = 'voiceNewProducer',
-  VOICE_PRODUCER_CLOSED = 'voiceProducerClosed',
-
   EMOJI_CREATE = 'emojiCreate',
   EMOJI_UPDATE = 'emojiUpdate',
   EMOJI_DELETE = 'emojiDelete',
@@ -48,7 +38,9 @@ export enum ServerEvents {
   CATEGORY_UPDATE = 'categoryUpdate',
   CATEGORY_DELETE = 'categoryDelete',
 
-  DM_CONVERSATION_OPEN = 'dmConversationOpen'
+  DM_CONVERSATION_OPEN = 'dmConversationOpen',
+
+  CLAUDE_CODE_STATUS = 'claudeCodeStatus'
 }
 
 export type TNewMessage = {

@@ -1,11 +1,10 @@
 import { useCan } from '@/features/server/hooks';
-import { Permission } from '@sharkord/shared';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sharkord/ui';
+import { Permission } from '@mikotord/shared';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mikotord/ui';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TServerScreenBaseProps } from '../screens';
 import { ServerScreenLayout } from '../server-screen-layout';
-import { Emojis } from './emojis';
 import { General } from './general';
 import { Invites } from './invites';
 import { Plugins } from './plugins';
@@ -23,7 +22,6 @@ const ServerSettings = memo(({ close }: TServerSettingsProps) => {
   const defaultTab = useMemo(() => {
     if (can(Permission.MANAGE_SETTINGS)) return 'general';
     if (can(Permission.MANAGE_ROLES)) return 'roles';
-    if (can(Permission.MANAGE_EMOJIS)) return 'emojis';
     if (can(Permission.MANAGE_STORAGE)) return 'storage';
     if (can(Permission.MANAGE_USERS)) return 'users';
     if (can(Permission.MANAGE_INVITES)) return 'invites';
@@ -44,12 +42,6 @@ const ServerSettings = memo(({ close }: TServerSettingsProps) => {
             </TabsTrigger>
             <TabsTrigger value="roles" disabled={!can(Permission.MANAGE_ROLES)}>
               {t('rolesTab')}
-            </TabsTrigger>
-            <TabsTrigger
-              value="emojis"
-              disabled={!can(Permission.MANAGE_EMOJIS)}
-            >
-              {t('emojisTab')}
             </TabsTrigger>
             <TabsTrigger
               value="storage"
@@ -84,9 +76,6 @@ const ServerSettings = memo(({ close }: TServerSettingsProps) => {
           </TabsContent>
           <TabsContent value="roles" className="space-y-6">
             {can(Permission.MANAGE_ROLES) && <Roles />}
-          </TabsContent>
-          <TabsContent value="emojis" className="space-y-6">
-            {can(Permission.MANAGE_EMOJIS) && <Emojis />}
           </TabsContent>
           <TabsContent value="storage" className="space-y-6">
             {can(Permission.MANAGE_STORAGE) && <Storage />}

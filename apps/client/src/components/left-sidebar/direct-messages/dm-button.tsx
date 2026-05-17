@@ -1,7 +1,7 @@
 import { setDmsOpen } from '@/features/server/actions';
 import { useDirectMessagesUnreadCount } from '@/features/server/channels/hooks';
 import { useDmsOpen } from '@/features/server/hooks';
-import { cn, Tooltip } from '@sharkord/ui';
+import { cn, Tooltip } from '@mikotord/ui';
 import { MessageCircleMore, X } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,7 @@ const DmButton = memo(() => {
           type="button"
           onClick={onToggleDmMode}
           className={cn(
-            'flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+            'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground',
             dmsOpen &&
               'bg-accent text-accent-foreground ring-1 ring-inset ring-primary/30'
           )}

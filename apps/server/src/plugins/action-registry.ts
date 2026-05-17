@@ -1,4 +1,4 @@
-import type { ActionDefinition, RegisteredAction } from '@sharkord/shared';
+import type { ActionDefinition, RegisteredAction } from '@mikotord/shared';
 import { ACTION_EXECUTION_TIMEOUT_MS } from './execution-timeout';
 import { PluginExecutableRegistry } from './plugin-executable-registry';
 import type { PluginLogger } from './plugin-logger';

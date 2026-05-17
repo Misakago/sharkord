@@ -69,9 +69,9 @@ describe('linkify-html', () => {
 
   test('should linkify multiple URLs in the same text node', () => {
     expect(
-      linkifyHtml('<p>https://google.com and https://github.com</p>')
+      linkifyHtml('<p>https://google.com and https://example.com/code</p>')
     ).toBe(
-      `<p>${link('https://google.com')} and ${link('https://github.com')}</p>`
+      `<p>${link('https://google.com')} and ${link('https://example.com/code')}</p>`
     );
   });
 
@@ -95,9 +95,9 @@ describe('linkify-html', () => {
 
   test('should handle URLs across multiple paragraphs', () => {
     expect(
-      linkifyHtml('<p>https://google.com</p><p>https://github.com</p>')
+      linkifyHtml('<p>https://google.com</p><p>https://example.com/code</p>')
     ).toBe(
-      `<p>${link('https://google.com')}</p><p>${link('https://github.com')}</p>`
+      `<p>${link('https://google.com')}</p><p>${link('https://example.com/code')}</p>`
     );
   });
 

@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 import type {
   TChannelRolePermission,
   TChannelUserPermission
-} from '@sharkord/shared';
-import { getTrpcError } from '@sharkord/shared';
+} from '@mikotord/shared';
+import { getTrpcError } from '@mikotord/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
   Separator
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -41,7 +41,7 @@ const RoleItem = memo(
       <button
         onClick={() => setSelectedKey(key)}
         className={cn(
-          'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent',
+          'flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm transition-colors hover:bg-accent',
           {
             'bg-accent': isSelected
           }
@@ -77,7 +77,7 @@ const UserItem = memo(
       <button
         onClick={() => setSelectedKey(key)}
         className={cn(
-          'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent',
+          'flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-sm transition-colors hover:bg-accent',
           {
             'bg-accent': isSelected
           }

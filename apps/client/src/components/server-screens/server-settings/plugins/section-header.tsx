@@ -1,5 +1,4 @@
-import { cn } from '@/lib/utils';
-import { Button, CardDescription, CardHeader, CardTitle } from '@sharkord/ui';
+import { Button, CardDescription, CardHeader, CardTitle } from '@mikotord/ui';
 import { RefreshCw } from 'lucide-react';
 import { memo } from 'react';
 
@@ -17,7 +16,7 @@ const SectionHeader = memo(
     title,
     description,
     onRefresh,
-    isRefreshing = false,
+    isRefreshing: _isRefreshing = false,
     refreshDisabled = false,
     refreshLabel = 'Refresh'
   }: TSectionHeaderProps) => {
@@ -36,9 +35,7 @@ const SectionHeader = memo(
               disabled={refreshDisabled}
               className="shrink-0"
             >
-              <RefreshCw
-                className={cn('w-4 h-4 mr-2', isRefreshing && 'animate-spin')}
-              />
+              <RefreshCw className="w-4 h-4 mr-2" />
               {refreshLabel}
             </Button>
           )}

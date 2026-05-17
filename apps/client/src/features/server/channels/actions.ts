@@ -1,6 +1,5 @@
-import { assertVoiceChatClose } from '@/features/app/actions';
 import { store } from '@/features/store';
-import type { TChannel, TChannelUserPermissionsMap } from '@sharkord/shared';
+import type { TChannel, TChannelUserPermissionsMap } from '@mikotord/shared';
 import { markChannelAsRead } from '../actions';
 import { serverSliceActions } from '../slice';
 import {
@@ -34,9 +33,6 @@ export const setSelectedChannelId = (channelId: number | undefined) => {
   markChannelAsRead(channelId);
 };
 
-export const setCurrentVoiceChannelId = (channelId: number | undefined) =>
-  store.dispatch(serverSliceActions.setCurrentVoiceChannelId(channelId));
-
 export const addChannel = (channel: TChannel) => {
   store.dispatch(serverSliceActions.addChannel(channel));
 };
@@ -50,8 +46,6 @@ export const updateChannel = (
 
 export const removeChannel = (channelId: number) => {
   store.dispatch(serverSliceActions.removeChannel({ channelId }));
-
-  assertVoiceChatClose(channelId);
 };
 
 export const setChannelPermissions = (
@@ -75,7 +69,6 @@ export const setChannelPermissions = (
   if (!canViewChannel) {
     // user lost VIEW_CHANNEL permission, deselect the channel
     setSelectedChannelId(undefined);
-    assertVoiceChatClose(selectedChannel);
   }
 };
 

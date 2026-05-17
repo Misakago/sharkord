@@ -1,10 +1,11 @@
 import {
   ChannelPermission,
+  ChannelType,
   OWNER_ROLE_ID,
   type TChannel,
   type TChannelUserPermissionsMap,
   type TReadStateMap
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '..';
 import { getOnlineUserIds } from '../../utils/wss';
@@ -133,9 +134,11 @@ const channelUserCan = async (
 
 const getChannelsForUser = async (userId: number): Promise<TChannel[]> => {
   const roleIds = await getUserRoleIds(userId);
+  const textOnly = (channel: TChannel) =>
+    channel.type === ChannelType.TEXT || channel.isDm;
 
   if (roleIds.includes(OWNER_ROLE_ID)) {
-    return await db.select().from(channels);
+    return (await db.select().from(channels)).filter(textOnly);
   }
 
   const [allChannels, { userPermissionMap, rolePermissionMap }, dmChannelIds] =
@@ -164,7 +167,7 @@ const getChannelsForUser = async (userId: number): Promise<TChannel[]> => {
     return rolePerm;
   });
 
-  return accessibleChannels;
+  return accessibleChannels.filter(textOnly);
 };
 
 const getAllChannelUserPermissions = async (

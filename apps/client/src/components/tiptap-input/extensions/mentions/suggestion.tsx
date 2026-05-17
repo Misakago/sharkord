@@ -1,7 +1,7 @@
 import { UserAvatar } from '@/components/user-avatar';
 import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import { computePosition } from '@floating-ui/dom';
-import type { TJoinedPublicUser } from '@sharkord/shared';
+import type { TJoinedPublicUser } from '@mikotord/shared';
 import type { Editor } from '@tiptap/core';
 import { ReactRenderer } from '@tiptap/react';
 import {
@@ -72,7 +72,9 @@ const UserList = forwardRef<TUserListRef, TUserListProps>(
 
     return (
       <div
-        className="bg-popover text-popover-foreground border rounded-md shadow-md min-w-[16rem] max-w-88 max-h-60 overflow-y-auto p-1 z-50"
+        data-suggestion-popover
+        className="isolate min-w-[16rem] max-w-88 max-h-60 overflow-y-auto rounded-lg border border-border bg-[#262626] p-1 text-card-foreground opacity-100 shadow-xl z-50"
+        style={{ backgroundColor: '#262626', opacity: 1 }}
         role="listbox"
         aria-label="Mention user"
       >
@@ -82,12 +84,17 @@ const UserList = forwardRef<TUserListRef, TUserListProps>(
             type="button"
             role="option"
             aria-selected={index === selectedIndex}
-            className={`w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex items-center gap-2 cursor-default select-none outline-none transition-colors ${
-              index === selectedIndex ? 'bg-accent text-accent-foreground' : ''
+            className={`flex h-10 w-full cursor-default select-none items-center gap-2 rounded-lg px-2 text-left text-sm outline-none transition-colors hover:bg-[#333333] hover:text-accent-foreground focus:bg-[#333333] focus:text-accent-foreground ${
+              index === selectedIndex
+                ? 'bg-[#333333] text-accent-foreground'
+                : 'bg-[#262626]'
             }`}
+            style={{
+              backgroundColor: index === selectedIndex ? '#333333' : '#262626'
+            }}
             onClick={() => onSelect(item)}
           >
-            <UserAvatar userId={item.id} className="h-6 w-6 shrink-0" />
+            <UserAvatar userId={item.id} className="h-8 w-8 shrink-0" />
             <span className="font-medium truncate">
               {getRenderedUsername(item)}
             </span>
@@ -185,6 +192,13 @@ const MentionSuggestion = {
         component = new ReactRenderer(UserList, {
           props: { items, onSelect },
           editor: props.editor
+        });
+
+        Object.assign(component.element.style, {
+          backgroundColor: '#262626',
+          borderRadius: '0.5rem',
+          opacity: '1',
+          zIndex: '50'
         });
 
         document.body.appendChild(component.element);

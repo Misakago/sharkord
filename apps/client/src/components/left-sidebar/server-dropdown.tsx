@@ -1,7 +1,7 @@
 import { openDialog, requestConfirmation } from '@/features/dialogs/actions';
 import { openServerScreen } from '@/features/server-screens/actions';
 import { disconnectFromServer } from '@/features/server/actions';
-import { Permission } from '@sharkord/shared';
+import { Permission } from '@mikotord/shared';
 import {
   Button,
   DropdownMenu,
@@ -10,7 +10,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Menu } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,6 @@ const ServerDropdownMenu = memo(() => {
     () => [
       Permission.MANAGE_SETTINGS,
       Permission.MANAGE_ROLES,
-      Permission.MANAGE_EMOJIS,
       Permission.MANAGE_STORAGE,
       Permission.MANAGE_USERS,
       Permission.MANAGE_INVITES,

@@ -8,6 +8,7 @@ type TUseScrollControllerProps = {
   hasMore: boolean;
   loadMore: () => Promise<unknown>;
   hasTypingUsers?: boolean;
+  disableInitialScroll?: boolean;
 };
 
 type TUseScrollControllerReturn = {
@@ -25,7 +26,8 @@ const useScrollController = ({
   fetching,
   hasMore,
   loadMore,
-  hasTypingUsers = false
+  hasTypingUsers = false,
+  disableInitialScroll = false
 }: TUseScrollControllerProps): TUseScrollControllerReturn => {
   const containerRef = useRef<HTMLDivElement>(null);
   const hasInitialScroll = useRef(false);
@@ -74,6 +76,12 @@ const useScrollController = ({
     if (!containerRef.current) return;
     if (fetching || messages.length === 0) return;
 
+    if (disableInitialScroll) {
+      hasInitialScroll.current = true;
+      shouldStickToBottom.current = false;
+      return;
+    }
+
     if (!hasInitialScroll.current) {
       // try multiple methods to ensure scroll happens after all content is rendered
       const performScroll = () => {
@@ -100,7 +108,7 @@ const useScrollController = ({
         performScroll();
       }, 200);
     }
-  }, [fetching, messages.length, scrollToBottom]);
+  }, [disableInitialScroll, fetching, messages.length, scrollToBottom]);
 
   // if user is already at the top when fetching completes
   // trigger another page load without requiring an extra scroll event

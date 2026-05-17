@@ -1,12 +1,10 @@
-import { getErrorMessage } from '@sharkord/shared';
+import { getErrorMessage } from '@mikotord/shared';
 import { embeddedFiles } from 'bun';
 import fs from 'fs/promises';
 import path from 'path';
-import { getExecutableName } from '../helpers/get-executable-name';
 import {
   DRIZZLE_PATH,
   INTERFACE_PATH,
-  MEDIASOUP_PATH,
   SRC_MIGRATIONS_PATH
 } from '../helpers/paths';
 import { unzipBlobToDirectory } from '../helpers/zip';
@@ -41,9 +39,8 @@ const loadEmbeds = async () => {
 
   const interfaceBlob = findEmbedFile('interface.zip');
   const drizzleBlob = findEmbedFile('drizzle.zip');
-  const mediasoupBlob = findEmbedFile('mediasoup-worker');
 
-  if (!interfaceBlob || !drizzleBlob || !mediasoupBlob) {
+  if (!interfaceBlob || !drizzleBlob) {
     throw new Error('Embedded files not found');
   }
 
@@ -68,25 +65,6 @@ const loadEmbeds = async () => {
     process.exit(1);
   }
 
-  try {
-    logger.debug('Extracting mediasoup worker...');
-
-    const mediasoupPath = path.join(
-      MEDIASOUP_PATH,
-      getExecutableName('mediasoup-worker')
-    );
-
-    const arrayBuffer = await mediasoupBlob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    await fs.writeFile(mediasoupPath, buffer);
-    await fs.chmod(mediasoupPath, 0o755);
-  } catch (error) {
-    logger.error(
-      'Failed to extract mediasoup worker: %s',
-      getErrorMessage(error)
-    );
-  }
 };
 
 export { loadEmbeds };

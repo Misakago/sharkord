@@ -1,10 +1,7 @@
-import {
-  selectedDmChannelIdSelector,
-  voiceChatSidebarDataSelector
-} from '@/features/app/selectors';
+import { selectedDmChannelIdSelector } from '@/features/app/selectors';
 import type { IRootState } from '@/features/store';
 import { createSelector } from '@reduxjs/toolkit';
-import { ChannelType, type TChannel } from '@sharkord/shared';
+import type { TChannel } from '@mikotord/shared';
 import { createCachedSelector } from 're-reselect';
 
 const DEFAULT_OBJECT = {};
@@ -21,9 +18,6 @@ export const selectedChannelTypeSelector = createSelector(
   (channels, selectedChannelId) =>
     channels.find((channel) => channel.id === selectedChannelId)?.type
 );
-
-export const currentVoiceChannelIdSelector = (state: IRootState) =>
-  state.server.currentVoiceChannelId;
 
 export const channelPermissionsSelector = (state: IRootState) =>
   state.server.channelPermissions;
@@ -55,13 +49,6 @@ export const selectedChannelSelector = createSelector(
     channels.find((channel) => channel.id === selectedChannelId)
 );
 
-export const isCurrentVoiceChannelSelectedSelector = createSelector(
-  [selectedChannelIdSelector, currentVoiceChannelIdSelector],
-  (selectedChannelId, currentVoiceChannelId) =>
-    currentVoiceChannelId !== undefined &&
-    selectedChannelId === currentVoiceChannelId
-);
-
 // this selector is not cached, do not use it outside actions
 export const isChannelTextVisibleByIdSelector = (
   state: IRootState,
@@ -81,17 +68,11 @@ export const isChannelTextVisibleByIdSelector = (
     return dmsOpen && isSelected;
   }
 
-  if (channel.type === ChannelType.VOICE) {
-    const voiceChatSidebar = voiceChatSidebarDataSelector(state);
-    const isVoiceChatSelected = voiceChatSidebar.channelId === channelId;
-
-    return voiceChatSidebar.isOpen && isVoiceChatSelected;
-  }
-
+  const dmsOpen = dmsOpenSelector(state);
   const selectedChannelId = selectedChannelIdSelector(state);
   const isSelected = selectedChannelId === channelId;
 
-  return isSelected;
+  return !dmsOpen && isSelected;
 };
 
 export const channelPermissionsByIdSelector = (

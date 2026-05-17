@@ -11,6 +11,7 @@ import {
   setLocalStorageItemBool,
   setSessionStorageItem
 } from '@/helpers/storage';
+import { DisconnectCode } from '@mikotord/shared';
 import { memo, useEffect, useRef } from 'react';
 
 const AutoLoginController = memo(() => {
@@ -25,7 +26,8 @@ const AutoLoginController = memo(() => {
       isAppLoading ||
       isPluginsLoading ||
       isConnected ||
-      disconnectInfo ||
+      disconnectInfo?.code === DisconnectCode.KICKED ||
+      disconnectInfo?.code === DisconnectCode.BANNED ||
       autoLoginAttempted.current
     ) {
       // ignore if the app is not done loading, if we're already connected or in the process of connecting

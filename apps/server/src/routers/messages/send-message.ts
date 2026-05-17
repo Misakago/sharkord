@@ -6,10 +6,11 @@ import {
   isEmptyMessage,
   Permission,
   toDomCommand
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { config } from '../../config';
+import { claudeCodeAgentManager } from '../../agents/claude-code';
 import { db } from '../../db';
 import { publishMessage, publishReplyCount } from '../../db/publishers';
 import { assertDmChannel, isDirectMessageChannel } from '../../db/queries/dms';
@@ -26,6 +27,14 @@ import { fileManager } from '../../utils/file-manager';
 import { invariant } from '../../utils/invariant';
 import { protectedProcedure, rateLimitedProcedure } from '../../utils/trpc';
 
+const messageFileInput = z.union([
+  z.string(),
+  z.object({
+    id: z.string(),
+    name: z.string().min(1).max(255).optional()
+  })
+]);
+
 const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
   maxRequests: config.rateLimiters.sendAndEditMessage.maxRequests,
   windowMs: config.rateLimiters.sendAndEditMessage.windowMs,
@@ -35,7 +44,7 @@ const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
     z.object({
       content: z.string(),
       channelId: z.number(),
-      files: z.array(z.string()).default([]),
+      files: z.array(messageFileInput).default([]),
       parentMessageId: z.number().optional(),
       replyToMessageId: z.number().optional()
     })
@@ -106,14 +115,10 @@ const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
       assertDmChannel(input.channelId, ctx.userId)
     ]);
 
-    const { storageMaxFilesPerMessage, enablePlugins } = settings;
+    const { enablePlugins } = settings;
+    const filesToAttach = input.files;
 
-    const limitedFiles = input.files.slice(
-      0,
-      Math.max(0, storageMaxFilesPerMessage)
-    );
-
-    if (limitedFiles.length > 0) {
+    if (filesToAttach.length > 0) {
       invariant(settings.storageUploadEnabled, {
         code: 'FORBIDDEN',
         message: 'File uploads are disabled on this server'
@@ -127,14 +132,14 @@ const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
       }
     }
 
-    invariant(!isEmptyMessage(input.content) || limitedFiles.length != 0, {
+    invariant(!isEmptyMessage(input.content) || filesToAttach.length != 0, {
       code: 'BAD_REQUEST',
       message: 'Message cannot be empty.'
     });
 
     let targetContent = sanitizeMessageHtml(input.content);
 
-    invariant(!isEmptyMessage(targetContent) || limitedFiles.length != 0, {
+    invariant(!isEmptyMessage(targetContent) || filesToAttach.length != 0, {
       code: 'BAD_REQUEST',
       message:
         'Your message only contained unsupported or removed content, so there was nothing to send.'
@@ -253,12 +258,15 @@ const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
 
     commandExecutor?.(message.id);
 
-    if (limitedFiles.length > 0) {
-      for (const tempFileId of limitedFiles) {
+    if (filesToAttach.length > 0) {
+      for (const tempFileId of filesToAttach) {
+        const fileInput =
+          typeof tempFileId === 'string' ? { id: tempFileId } : tempFileId;
         const newFile = await fileManager.saveFile(
-          tempFileId,
+          fileInput.id,
           ctx.userId,
-          FileSaveType.MESSAGE
+          FileSaveType.MESSAGE,
+          fileInput.name
         );
 
         await db.insert(messageFiles).values({
@@ -270,6 +278,7 @@ const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
     }
 
     publishMessage(message.id, input.channelId, 'create');
+    void claudeCodeAgentManager.handleCreatedMessage(message.id);
 
     if (input.parentMessageId) {
       publishReplyCount(input.parentMessageId, input.channelId);

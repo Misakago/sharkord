@@ -1,4 +1,4 @@
-import { type TParsedDomCommand } from '@sharkord/shared';
+import { type TParsedDomCommand } from '@mikotord/shared';
 import {
   CheckCircle2,
   ChevronDown,
@@ -38,7 +38,7 @@ const CommandOverride = memo(({ command }: TCommandOverrideProps) => {
       case 'pending':
       default:
         return (
-          <Loader2 className="size-3 animate-spin text-muted-foreground" />
+          <Loader2 className="size-3 text-muted-foreground" />
         );
     }
   }, [command.status]);
@@ -106,7 +106,7 @@ const CommandOverride = memo(({ command }: TCommandOverrideProps) => {
             <div className="mt-0.5 flex flex-col rounded-md border border-border/50 bg-background/50">
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors hover:bg-accent"
               >
                 {isExpanded ? (
                   <ChevronDown className="size-3 shrink-0 text-muted-foreground" />

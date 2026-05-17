@@ -31,7 +31,7 @@ import {
   type TRole,
   type TStorageSettings,
   type TTrpcErrors
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { filesize } from 'filesize';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';

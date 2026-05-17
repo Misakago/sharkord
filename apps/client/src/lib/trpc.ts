@@ -11,13 +11,14 @@ import {
   removeSessionStorageItem,
   SessionStorageKey
 } from '@/helpers/storage';
-import { type AppRouter, type TConnectionParams } from '@sharkord/shared';
+import { type AppRouter, type TConnectionParams } from '@mikotord/shared';
 import { createTRPCProxyClient, createWSClient, wsLink } from '@trpc/client';
 
 let wsClient: ReturnType<typeof createWSClient> | null = null;
 let trpc: ReturnType<typeof createTRPCProxyClient<AppRouter>> | null = null;
 let currentHost: string | null = null;
 let isCleaningUp = false;
+let isManualDisconnect = false;
 
 // Firefox fires WebSocket onClose during page refresh; Chrome does not. When navigating away,
 // we must not clear auto-login localStorage or it will be lost on refresh in Firefox.
@@ -35,12 +36,14 @@ const initializeTRPC = (host: string) => {
     onClose: (cause: CloseEvent) => {
       cleanup();
 
-      setDisconnectInfo({
-        code: cause.code,
-        reason: cause.reason,
-        wasClean: cause.wasClean,
-        time: new Date()
-      });
+      if (!isManualDisconnect) {
+        setDisconnectInfo({
+          code: cause.code,
+          reason: cause.reason,
+          wasClean: cause.wasClean,
+          time: new Date()
+        });
+      }
 
       if (!cause.wasClean) {
         playSound(SoundType.SERVER_DISCONNECTED);
@@ -83,7 +86,7 @@ const getTRPCClient = () => {
   return trpc;
 };
 
-const cleanup = () => {
+const cleanup = ({ clearAutoLoginToken = false } = {}) => {
   if (isCleaningUp) {
     return;
   }
@@ -98,11 +101,9 @@ const cleanup = () => {
   trpc = null;
   currentHost = null;
 
-  // cleanup can be called due to various reasons (manual disconnect, connection error, auto-login failure, etc).
-  // so we remove any persisted auto-login token to prevent auto-login loops.
-  // skip this when navigating away (refresh/close) - Firefox fires onClose during refresh, Chrome does not
-  if (!isNavigatingAway)
+  if (clearAutoLoginToken && !isNavigatingAway) {
     removeLocalStorageItem(LocalStorageKey.AUTO_LOGIN_TOKEN);
+  }
 
   resetServerScreens();
   resetServerState();
@@ -114,7 +115,13 @@ const cleanup = () => {
   // this should help Firefox users who report that auto login is not consistent
   setTimeout(() => {
     isCleaningUp = false;
+    isManualDisconnect = false;
   }, 100);
 };
 
-export { cleanup, connectToTRPC, getTRPCClient, type AppRouter };
+const disconnectTRPC = () => {
+  isManualDisconnect = true;
+  cleanup({ clearAutoLoginToken: true });
+};
+
+export { cleanup, connectToTRPC, disconnectTRPC, getTRPCClient, type AppRouter };

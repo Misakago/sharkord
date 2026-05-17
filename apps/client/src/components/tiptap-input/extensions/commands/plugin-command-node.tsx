@@ -1,4 +1,4 @@
-import type { TCommandArg } from '@sharkord/shared';
+import type { TCommandArg } from '@mikotord/shared';
 import { Node } from '@tiptap/core';
 import {
   NodeViewWrapper,

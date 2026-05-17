@@ -8,31 +8,27 @@ await loadEmbeds();
 // ----------------------------------------
 import { IS_PRODUCTION, SERVER_VERSION } from './utils/env';
 // ----------------------------------------
-import { ActivityLogType } from '@sharkord/shared';
+import { ActivityLogType } from '@mikotord/shared';
 import chalk from 'chalk';
 import { config, SERVER_PRIVATE_IP } from './config';
 import { loadCrons } from './crons';
 import { loadDb } from './db';
 import { pluginManager } from './plugins';
 import { enqueueActivityLog } from './queues/activity-log';
-import { initVoiceRuntimes } from './runtimes';
 import { createServers } from './utils/create-servers';
-import { loadMediasoup } from './utils/mediasoup';
 import { printDebug } from './utils/print-debug';
 import './utils/updater';
 
 await loadDb();
 await pluginManager.loadPlugins();
 await createServers();
-await loadMediasoup();
-await initVoiceRuntimes();
 await loadCrons();
 
-const host = IS_PRODUCTION ? SERVER_PRIVATE_IP : 'localhost';
+  const host = SERVER_PRIVATE_IP || (IS_PRODUCTION ? '0.0.0.0' : 'localhost');
 const url = `http://${host}:${config.server.port}/`;
 
 const message = [
-  chalk.green.bold('SHARKORD') + ' ' + chalk.white.bold(`v${SERVER_VERSION}`),
+  chalk.green.bold('MIKOTORD') + ' ' + chalk.white.bold(`v${SERVER_VERSION}`),
   chalk.dim('────────────────────────────────────────────────────'),
   `${chalk.yellow('Port:')} ${chalk.bold(String(config.server.port))}`,
   `${chalk.yellow('Interface:')} ${chalk.underline.cyan(url)}`

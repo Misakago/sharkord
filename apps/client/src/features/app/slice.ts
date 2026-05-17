@@ -1,16 +1,11 @@
-import {
-  getLocalStorageItemAsNumber,
-  getLocalStorageItemBool,
-  LocalStorageKey
-} from '@/helpers/storage';
-import type { TDevices, TMessageJumpToTarget } from '@/types';
+import { getLocalStorageItemBool, LocalStorageKey } from '@/helpers/storage';
+import type { TMessageJumpToTarget } from '@/types';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export interface TAppState {
   appLoading: boolean;
   isAutoConnecting: boolean;
   loadingPlugins: boolean;
-  devices: TDevices | undefined;
   modViewOpen: boolean;
   modViewUserId: number | undefined;
   threadSidebarOpen: boolean;
@@ -23,17 +18,17 @@ export interface TAppState {
   browserNotificationsForDms: boolean;
   browserNotificationsForReplies: boolean;
   messageJumpTarget: TMessageJumpToTarget | undefined;
-  voiceChatSidebarOpen: boolean;
-  voiceChatChannelId: number | undefined;
   pluginSlotDebug: boolean;
   modifierKeysHeldMap: Record<string, boolean>;
+  claudeCodePanelOpen: boolean;
+  claudeCodeHistoryOpen: boolean;
+  claudeCodeTerminalControl: boolean;
 }
 
 const initialState: TAppState = {
   appLoading: true,
   isAutoConnecting: false,
   loadingPlugins: true,
-  devices: undefined,
   modViewOpen: false,
   modViewUserId: undefined,
   threadSidebarOpen: false,
@@ -61,18 +56,14 @@ const initialState: TAppState = {
     false
   ),
   messageJumpTarget: undefined,
-  voiceChatSidebarOpen: getLocalStorageItemBool(
-    LocalStorageKey.VOICE_CHAT_SIDEBAR_STATE,
-    false
-  ),
-  voiceChatChannelId: getLocalStorageItemAsNumber(
-    LocalStorageKey.VOICE_CHAT_SIDEBAR_CHANNEL_ID
-  ),
   pluginSlotDebug: getLocalStorageItemBool(
     LocalStorageKey.PLUGIN_SLOT_DEBUG,
     false
   ),
-  modifierKeysHeldMap: { Shift: false, Control: false, Alt: false }
+  modifierKeysHeldMap: { Shift: false, Control: false, Alt: false },
+  claudeCodePanelOpen: false,
+  claudeCodeHistoryOpen: false,
+  claudeCodeTerminalControl: false
 };
 
 export const appSlice = createSlice({
@@ -81,9 +72,6 @@ export const appSlice = createSlice({
   reducers: {
     setAppLoading: (state, action: PayloadAction<boolean>) => {
       state.appLoading = action.payload;
-    },
-    setDevices: (state, action: PayloadAction<TDevices>) => {
-      state.devices = action.payload;
     },
     setLoadingPlugins: (state, action: PayloadAction<boolean>) => {
       state.loadingPlugins = action.payload;
@@ -146,16 +134,6 @@ export const appSlice = createSlice({
     ) => {
       state.messageJumpTarget = action.payload;
     },
-    setVoiceChatSidebar: (
-      state,
-      action: PayloadAction<{
-        open: boolean;
-        channelId?: number;
-      }>
-    ) => {
-      state.voiceChatSidebarOpen = action.payload.open;
-      state.voiceChatChannelId = action.payload.channelId;
-    },
     setPluginSlotDebug: (state, action: PayloadAction<boolean>) => {
       state.pluginSlotDebug = action.payload;
     },
@@ -164,6 +142,15 @@ export const appSlice = createSlice({
       action: PayloadAction<Record<string, boolean>>
     ) => {
       state.modifierKeysHeldMap = action.payload;
+    },
+    setClaudeCodePanelOpen: (state, action: PayloadAction<boolean>) => {
+      state.claudeCodePanelOpen = action.payload;
+    },
+    setClaudeCodeHistoryOpen: (state, action: PayloadAction<boolean>) => {
+      state.claudeCodeHistoryOpen = action.payload;
+    },
+    setClaudeCodeTerminalControl: (state, action: PayloadAction<boolean>) => {
+      state.claudeCodeTerminalControl = action.payload;
     }
   }
 });

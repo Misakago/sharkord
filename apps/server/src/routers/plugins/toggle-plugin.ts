@@ -1,4 +1,4 @@
-import { ActivityLogType, Permission, zPluginId } from '@sharkord/shared';
+import { ActivityLogType, Permission, zPluginId } from '@mikotord/shared';
 import { z } from 'zod';
 import { publishPlugins } from '../../db/publishers';
 import { pluginManager } from '../../plugins';

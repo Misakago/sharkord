@@ -1,6 +1,6 @@
 import type { IRootState } from '@/features/store';
 import { getTRPCClient } from '@/lib/trpc';
-import { DEFAULT_MESSAGES_LIMIT, type TJoinedMessage } from '@sharkord/shared';
+import { DEFAULT_MESSAGES_LIMIT, type TJoinedMessage } from '@mikotord/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { addMessages, addThreadMessages, clearThreadMessages } from './actions';
@@ -211,10 +211,10 @@ export const useMessages = (channelId: number) => {
   const scrollToMessage = useCallback(
     async (messageId: number, highlightTime = 4000) => {
       // check if the message is already rendered in the messages container
-      const existing = findMessageElement(messageId);
+      const existing = findMessageElement(messageId, channelId);
 
       if (existing) {
-        highlightMessageElement(existing, highlightTime);
+        await highlightMessageElement(existing, highlightTime);
 
         return;
       }
@@ -228,10 +228,10 @@ export const useMessages = (channelId: number) => {
 
       storeChannelMessages(channelId, rawPage, { prepend: true });
 
-      const element = await waitForMessageElement(messageId);
+      const element = await waitForMessageElement(messageId, channelId);
 
       if (element) {
-        highlightMessageElement(element, highlightTime);
+        await highlightMessageElement(element, highlightTime);
       }
     },
     [channelId]
@@ -248,14 +248,15 @@ export const useThreadMessagesByParentId = (parentMessageId: number) =>
 export const useThreadMessages = (parentMessageId: number) => {
   const messages = useThreadMessagesByParentId(parentMessageId);
 
-  const fetchPage = useCallback(
-    async (cursorToFetch: number | null) => {
+  const fetchThreadMessagesPage = useCallback(
+    async (input: { cursor: number | null; targetMessageId?: number }) => {
       const trpcClient = getTRPCClient();
 
       const { messages: page, nextCursor } =
         await trpcClient.messages.getThread.query({
           parentMessageId,
-          cursor: cursorToFetch,
+          cursor: input.cursor,
+          targetMessageId: input.targetMessageId,
           limit: DEFAULT_MESSAGES_LIMIT
         });
 
@@ -264,6 +265,12 @@ export const useThreadMessages = (parentMessageId: number) => {
       return { nextCursor };
     },
     [parentMessageId]
+  );
+
+  const fetchPage = useCallback(
+    (cursorToFetch: number | null) =>
+      fetchThreadMessagesPage({ cursor: cursorToFetch }),
+    [fetchThreadMessagesPage]
   );
 
   const paginated = usePaginatedMessages(messages, fetchPage, {
@@ -277,7 +284,30 @@ export const useThreadMessages = (parentMessageId: number) => {
     paginated.fetchMessages(null);
   }, [parentMessageId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return paginated;
+  const scrollToMessage = useCallback(
+    async (messageId: number, highlightTime = 4000) => {
+      const existing = findMessageElement(messageId);
+
+      if (existing) {
+        await highlightMessageElement(existing, highlightTime);
+        return;
+      }
+
+      await fetchThreadMessagesPage({
+        cursor: null,
+        targetMessageId: messageId
+      });
+
+      const element = await waitForMessageElement(messageId);
+
+      if (element) {
+        await highlightMessageElement(element, highlightTime);
+      }
+    },
+    [fetchThreadMessagesPage]
+  );
+
+  return { ...paginated, scrollToMessage };
 };
 
 export const useParentMessage = (

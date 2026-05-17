@@ -11,7 +11,6 @@ const MAX_RECENT_EMOJIS = 32;
 type StoredEmoji = {
   name: string;
   shortcodes: string[];
-  fallbackImage?: string;
   emoji?: string;
 };
 
@@ -42,7 +41,6 @@ const saveRecentEmojis = (emojis: TEmojiItem[]): void => {
   const toStore: StoredEmoji[] = emojis.map((e) => ({
     name: e.name,
     shortcodes: e.shortcodes,
-    fallbackImage: e.fallbackImage,
     emoji: e.emoji
   }));
 

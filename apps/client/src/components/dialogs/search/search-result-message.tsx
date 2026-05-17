@@ -5,34 +5,62 @@ import { RelativeTime } from '@/components/relative-time';
 import { UserAvatar } from '@/components/user-avatar';
 import { usePluginMetadata } from '@/features/server/plugins/hooks';
 import type { TMessageJumpToTarget } from '@/types';
-import { IconButton, Tooltip } from '@sharkord/ui';
-import { ArrowRight, Hash } from 'lucide-react';
+import type { KeyboardEvent } from 'react';
 import { memo, useCallback } from 'react';
+import { AtSign, Hash } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TSearchResultMessage } from './types';
 
 type TSearchResultMessageCardProps = {
   message: TSearchResultMessage;
+  onOpen: (target: TMessageJumpToTarget) => void;
   onJump: (target: TMessageJumpToTarget) => void;
 };
 
 const SearchResultMessageCard = memo(
-  ({ message, onJump }: TSearchResultMessageCardProps) => {
+  ({ message, onOpen, onJump }: TSearchResultMessageCardProps) => {
     const { t } = useTranslation('dialogs');
     const isPluginMessage = !!message.pluginId;
     const plugin = usePluginMetadata(message.pluginId);
     const authorName = useMessageAuthorName(message);
 
-    const handleJump = useCallback(() => {
-      onJump({
+    const getTarget = useCallback(
+      (): TMessageJumpToTarget => ({
         channelId: message.channelId,
-        messageId: message.parentMessageId ?? message.id,
-        isDm: message.channelIsDm
-      });
-    }, [onJump, message]);
+        messageId: message.id,
+        isDm: message.channelIsDm,
+        threadParentMessageId: message.parentMessageId
+      }),
+      [message.channelId, message.channelIsDm, message.id, message.parentMessageId]
+    );
+
+    const handleJump = useCallback(() => {
+      onJump(getTarget());
+    }, [getTarget, onJump]);
+
+    const handleOpen = useCallback(() => {
+      onOpen(getTarget());
+    }, [getTarget, onOpen]);
+
+    const handleCardKeyDown = useCallback(
+      (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleOpen();
+        }
+      },
+      [handleOpen]
+    );
 
     return (
-      <div className="w-full overflow-hidden rounded-lg border border-border bg-card px-3 py-2 text-left">
+      <div
+        className="w-full overflow-hidden rounded-lg border border-border bg-accent px-3 py-2 text-left hover:bg-accent/80 cursor-pointer"
+        onClick={handleJump}
+        onDoubleClick={handleOpen}
+        onKeyDown={handleCardKeyDown}
+        role="button"
+        tabIndex={0}
+      >
         <div className="flex min-w-0 items-start gap-3">
           {isPluginMessage ? (
             <PluginAvatar
@@ -48,22 +76,21 @@ const SearchResultMessageCard = memo(
               <span className="max-w-55 truncate font-medium text-foreground">
                 {authorName}
               </span>
-              <span>•</span>
               <RelativeTime date={new Date(message.createdAt)}>
                 {(relativeTime) => <span>{relativeTime}</span>}
               </RelativeTime>
-              <span>•</span>
               <span className="inline-flex min-w-0 max-w-full items-center gap-1">
-                <Hash className="h-3 w-3" />
+                {message.channelIsDm ? (
+                  <AtSign className="h-3 w-3" />
+                ) : (
+                  <Hash className="h-3 w-3" />
+                )}
                 <span className="truncate wrap-anywhere">
                   {message.channelName}
                 </span>
               </span>
               {!!message.parentMessageId && (
-                <>
-                  <span>•</span>
-                  <span>{t('inThread')}</span>
-                </>
+                <span>{t('inThread')}</span>
               )}
             </div>
             <div className="mt-1 min-w-0 overflow-hidden">
@@ -76,20 +103,6 @@ const SearchResultMessageCard = memo(
               </div>
             </div>
           </div>
-          <Tooltip
-            content={
-              message.parentMessageId
-                ? t('jumpToThreadMessage')
-                : t('jumpToMessage')
-            }
-          >
-            <IconButton
-              icon={ArrowRight}
-              variant="ghost"
-              size="sm"
-              onClick={handleJump}
-            />
-          </Tooltip>
         </div>
       </div>
     );

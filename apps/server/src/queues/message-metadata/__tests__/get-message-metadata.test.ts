@@ -23,7 +23,6 @@ describe('message metadata normalization', () => {
       description: 'A useful preview.',
       mediaType: 'website',
       images: ['https://example.com/cover.png'],
-      videos: undefined,
       favicons: ['https://example.com/favicon.ico']
     });
   });
@@ -49,7 +48,6 @@ describe('message metadata normalization', () => {
       description: 'OG description',
       mediaType: 'article',
       images: ['https://example.com/cover.png'],
-      videos: undefined,
       favicons: ['https://example.com/favicon.ico']
     });
   });

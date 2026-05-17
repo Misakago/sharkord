@@ -1,4 +1,4 @@
-import { ServerEvents } from '@sharkord/shared';
+import { ServerEvents } from '@mikotord/shared';
 import { protectedProcedure, t } from '../../utils/trpc';
 import { getDirectMessagesRoute } from './get-direct-messages';
 import { openDirectMessageRoute } from './open-direct-message';

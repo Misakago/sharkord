@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-DATA_DIR="/home/bun/.config/sharkord"
+DATA_DIR="/home/bun/.config/mikotord"
 
 # if we're already running as non-root (e.g. K8s securityContext, Podman rootless),
 # just ensure the data directory exists and run the binary directly.
 if [ "$(id -u)" -ne 0 ]; then
   mkdir -p "$DATA_DIR"
-  exec /sharkord
+  exec /mikotord
 fi
 
 # running as root: optionally remap the bun user's UID/GID via PUID/PGID env vars
@@ -28,4 +28,4 @@ mkdir -p "$DATA_DIR"
 chown -R bun:bun /home/bun/.config
 
 # drop privileges and exec the binary
-exec su -s /bin/sh bun -c "exec /sharkord"
+exec su -s /bin/sh bun -c "exec /mikotord"

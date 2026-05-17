@@ -1,11 +1,10 @@
 import { ServerScreen } from '@/components/server-screens/screens';
-import { openVoiceChatSidebar } from '@/features/app/actions';
 import { requestConfirmation } from '@/features/dialogs/actions';
 import { openServerScreen } from '@/features/server-screens/actions';
 import { useChannelById } from '@/features/server/channels/hooks';
 import { useCan } from '@/features/server/hooks';
 import { getTRPCClient } from '@/lib/trpc';
-import { ChannelType, Permission } from '@sharkord/shared';
+import { Permission } from '@mikotord/shared';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -13,7 +12,7 @@ import {
   ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -30,11 +29,6 @@ const ChannelContextMenu = memo(
     const channel = useChannelById(channelId);
 
     const canManageChannels = can(Permission.MANAGE_CHANNELS);
-    const isVoiceChannel = channel?.type === ChannelType.VOICE;
-
-    const onOpenChat = useCallback(() => {
-      openVoiceChatSidebar(channelId);
-    }, [channelId]);
 
     const onDeleteClick = useCallback(async () => {
       const choice = await requestConfirmation({
@@ -61,7 +55,7 @@ const ChannelContextMenu = memo(
       openServerScreen(ServerScreen.CHANNEL_SETTINGS, { channelId });
     }, [channelId]);
 
-    if (!canManageChannels && !isVoiceChannel) {
+    if (!canManageChannels) {
       return <>{children}</>;
     }
 
@@ -71,14 +65,8 @@ const ChannelContextMenu = memo(
         <ContextMenuContent>
           <ContextMenuLabel>{channel?.name}</ContextMenuLabel>
           <ContextMenuSeparator />
-          {isVoiceChannel && (
-            <ContextMenuItem onClick={onOpenChat}>
-              {t('openChat')}
-            </ContextMenuItem>
-          )}
           {canManageChannels && (
             <>
-              {isVoiceChannel && <ContextMenuSeparator />}
               <ContextMenuItem onClick={onEditClick}>
                 {t('editLabel')}
               </ContextMenuItem>

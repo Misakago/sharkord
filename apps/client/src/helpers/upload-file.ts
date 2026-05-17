@@ -1,18 +1,11 @@
-import { UploadHeaders, type TTempFile } from '@sharkord/shared';
+import { UploadHeaders, type TTempFile } from '@mikotord/shared';
 import i18next from 'i18next';
 import { toast } from 'sonner';
 import { getUrlFromServer } from './get-file-url';
 import { getSessionStorageItem, SessionStorageKey } from './storage';
 
-const getSafeFileName = (name: string) => {
-  return (
-    name
-      .trim()
-      .normalize('NFKD') // decomposes accented chars
-      // eslint-disable-next-line no-control-regex
-      .replace(/[^\x00-\x7F]/g, '_') // replaces non-ASCII chars with underscore
-  );
-};
+const getUploadFileNameHeader = (name: string) =>
+  encodeURIComponent(name.trim());
 
 const uploadImage = async (file: File): Promise<TTempFile | undefined> => {
   if (!file.type.startsWith('image/')) {
@@ -44,7 +37,7 @@ const uploadFile = async (file: File, options?: TUploadFileOptions) => {
     xhr.setRequestHeader(UploadHeaders.TYPE, file.type);
     xhr.setRequestHeader(
       UploadHeaders.ORIGINAL_NAME,
-      getSafeFileName(file.name)
+      getUploadFileNameHeader(file.name)
     );
     xhr.setRequestHeader(
       UploadHeaders.TOKEN,

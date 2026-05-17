@@ -20,7 +20,7 @@ import {
   type TIRole,
   type TISettings,
   type TIUser
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { randomUUIDv7 } from 'bun';
 import { type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import {
@@ -52,7 +52,7 @@ const hashedPassword = await Bun.password.hash('password123');
  * - User B (member) (4)
  * Channels:
  * - General (1)
- * - Voice (2)
+ * - Lounge (2)
  * - DM Channel (3) (between User A and User B)
  * Messages:
  * - Test message (1) (in General, by Test Owner)
@@ -98,7 +98,7 @@ const seedTestDb = async (db: BunSQLiteDatabase) => {
       createdAt: firstStart
     },
     {
-      name: 'Voice Channels',
+      name: 'More Text Channels',
       position: 2,
       createdAt: firstStart
     }
@@ -116,11 +116,11 @@ const seedTestDb = async (db: BunSQLiteDatabase) => {
       createdAt: firstStart
     },
     {
-      type: ChannelType.VOICE,
-      name: 'Voice',
+      type: ChannelType.TEXT,
+      name: 'Lounge',
       position: 1,
       categoryId: 2,
-      topic: 'General voice channel',
+      topic: 'General text channel',
       createdAt: firstStart
     }
   ];
@@ -265,7 +265,7 @@ const seedTestDb = async (db: BunSQLiteDatabase) => {
   ]);
 
   const dmChannel: TIChannel = {
-    type: ChannelType.VOICE,
+    type: ChannelType.TEXT,
     name: 'DM Channel',
     position: 0,
     isDm: true,

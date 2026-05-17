@@ -1,5 +1,5 @@
 import { Dialog } from '@/components/dialogs/dialogs';
-import type { TGenericObject } from '@sharkord/shared';
+import type { TGenericObject } from '@mikotord/shared';
 import { store } from '../store';
 import { dialogSliceActions } from './slice';
 
@@ -15,7 +15,6 @@ export const closeDialogs = () => {
     store.dispatch(dialogSliceActions.closeDialogs());
 
     setTimeout(() => {
-      // https://github.com/radix-ui/primitives/issues/1241
       // remove this after radix fixes the bug
       document.body.style.pointerEvents = '';
     }, 0);

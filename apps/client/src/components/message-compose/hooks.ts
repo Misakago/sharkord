@@ -13,6 +13,7 @@ type TUseFileAwareHeightParams = {
   containerRef: React.RefObject<HTMLDivElement | null>;
   composeContainerRef?: React.RefObject<HTMLDivElement | null>;
   displayItems: unknown[];
+  layoutVersion?: number;
   inputStorageKey: LocalStorageKey;
   inputDefaultMaxHeightVh: number;
 };
@@ -21,6 +22,7 @@ const useFileAwareHeight = ({
   containerRef,
   composeContainerRef,
   displayItems,
+  layoutVersion,
   inputStorageKey,
   inputDefaultMaxHeightVh
 }: TUseFileAwareHeightParams) => {
@@ -88,7 +90,7 @@ const useFileAwareHeight = ({
 
       userPinnedHeightRef.current = null;
     }
-  }, [displayItems, containerRef, inputDefaultMaxHeightVh]);
+  }, [displayItems, layoutVersion, containerRef, inputDefaultMaxHeightVh]);
 };
 
 export { useFileAwareHeight };

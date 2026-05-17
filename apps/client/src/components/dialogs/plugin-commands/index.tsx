@@ -1,13 +1,13 @@
 import { usePluginCommands } from '@/features/server/plugins/hooks';
 import { getTRPCClient } from '@/lib/trpc';
-import { getTrpcError } from '@sharkord/shared';
+import { getTrpcError } from '@mikotord/shared';
 import {
   Button,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Play } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -161,7 +161,7 @@ const PluginCommandsDialog = memo(
                           handleArgChange={handleArgChange}
                         />
                       ) : (
-                        <div className="p-4 border rounded-lg bg-muted/30">
+                        <div className="p-4 border rounded-lg bg-accent">
                           <p className="text-sm text-muted-foreground">
                             {t('noArgsRequired')}
                           </p>
@@ -174,7 +174,7 @@ const PluginCommandsDialog = memo(
                     </div>
                   </div>
 
-                  <div className="border-t p-4 bg-muted/30">
+                  <div className="border-t p-4 bg-accent">
                     <div className="flex justify-start gap-4">
                       <Button variant="outline" onClick={close}>
                         {t('close')}

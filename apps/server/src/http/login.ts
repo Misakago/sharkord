@@ -3,7 +3,7 @@ import {
   DELETED_USER_IDENTITY_AND_NAME,
   sha256,
   type TJoinedUser
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import chalk from 'chalk';
 import { eq, isNull, max, sql } from 'drizzle-orm';
 import http from 'http';
@@ -75,7 +75,7 @@ const registerUser = async (
   const user = await db
     .insert(users)
     .values({
-      name: `SharkordUser${randomNum}`,
+      name: `MikotordUser${randomNum}`,
       identity,
       createdAt: Date.now(),
       password: hashedPassword
@@ -260,7 +260,7 @@ const loginRouteHandler = async (
   }
 
   const token = jwt.sign({ userId: existingUser.id }, await getServerToken(), {
-    expiresIn: '604800s' // 7 days
+    expiresIn: '365d'
   });
 
   res.writeHead(200, { 'Content-Type': 'application/json' });

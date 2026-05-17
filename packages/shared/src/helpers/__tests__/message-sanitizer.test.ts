@@ -74,20 +74,20 @@ describe('isEmptyMessage', () => {
     expect(isEmptyMessage('<img src="test.png" alt="test">')).toBe(false);
   });
 
-  test('should return false for video tags (media)', () => {
-    expect(isEmptyMessage('<video src="video.mp4"></video>')).toBe(false);
-    expect(isEmptyMessage("<video><source src='v.mp4'></video>")).toBe(false);
+  test('should return true for unsupported video tags', () => {
+    expect(isEmptyMessage('<video src="video.mp4"></video>')).toBe(true);
+    expect(isEmptyMessage("<video><source src='v.mp4'></video>")).toBe(true);
   });
 
-  test('should return false for audio tags (media)', () => {
-    expect(isEmptyMessage('<audio src="audio.mp3"></audio>')).toBe(false);
-    expect(isEmptyMessage("<audio><source src='a.mp3'></audio>")).toBe(false);
+  test('should return true for unsupported audio tags', () => {
+    expect(isEmptyMessage('<audio src="audio.mp3"></audio>')).toBe(true);
+    expect(isEmptyMessage("<audio><source src='a.mp3'></audio>")).toBe(true);
   });
 
-  test('should return false for iframe tags (media)', () => {
-    expect(isEmptyMessage('<iframe src="page.html"></iframe>')).toBe(false);
+  test('should return true for iframe tags', () => {
+    expect(isEmptyMessage('<iframe src="page.html"></iframe>')).toBe(true);
     expect(isEmptyMessage('<iframe src="https://example.com"></iframe>')).toBe(
-      false
+      true
     );
   });
 
@@ -99,7 +99,7 @@ describe('isEmptyMessage', () => {
       isEmptyMessage(
         '<video src="v.mp4"></video><br class="ProseMirror-trailingBreak">'
       )
-    ).toBe(false);
+    ).toBe(true);
   });
 
   test('should return false for text mixed with empty elements', () => {
@@ -241,7 +241,7 @@ describe('removeEmojiElements', () => {
 
   test('should remove custom emoji img with class on parent span', () => {
     const html =
-      '<p><span data-name="cool_doge" class="emoji-image" data-type="emoji"><img src="https://rc.sharkord.com/public/Cool%20Doge.gif" draggable="false" loading="lazy" align="absmiddle" alt="cool_doge emoji" /></span></p>';
+      '<p><span data-name="cool_doge" class="emoji-image" data-type="emoji"><img src="https://cdn.example.com/public/Cool%20Doge.gif" draggable="false" loading="lazy" align="absmiddle" alt="cool_doge emoji" /></span></p>';
     expect(removeEmojiElements(html)).toBe('<p></p>');
   });
 
@@ -287,7 +287,7 @@ describe('removeEmojiElements', () => {
 
 describe('removeCommandElements', () => {
   test('should remove a command element', () => {
-    const html = `<command data-plugin-id="sharkord-music-bot" data-plugin-logo="https://i.imgur.com/uVBNUK9.png" data-command="stop" data-args='[]' data-status='completed' data-response=''></command>`;
+    const html = `<command data-plugin-id="mikotord-music-bot" data-plugin-logo="https://i.imgur.com/uVBNUK9.png" data-command="stop" data-args='[]' data-status='completed' data-response=''></command>`;
     expect(removeCommandElements(html)).toBe('');
   });
 
@@ -297,7 +297,7 @@ describe('removeCommandElements', () => {
   });
 
   test('should remove command element and preserve surrounding content', () => {
-    const html = `<p>Hello</p><command data-plugin-id="sharkord-music-bot" data-command="stop" data-args='[]' data-status='completed' data-response=''></command><p>World</p>`;
+    const html = `<p>Hello</p><command data-plugin-id="mikotord-music-bot" data-command="stop" data-args='[]' data-status='completed' data-response=''></command><p>World</p>`;
     expect(removeCommandElements(html)).toBe('<p>Hello</p><p>World</p>');
   });
 

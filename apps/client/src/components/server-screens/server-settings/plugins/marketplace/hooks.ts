@@ -1,7 +1,7 @@
 import {
   MARKETPLACE_REGISTRY_URL,
   type TMarketplaceEntry
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -20,6 +20,11 @@ const useMarketplaceData = (t: TFunction<'settings'>) => {
     setError(null);
 
     try {
+      if (!MARKETPLACE_REGISTRY_URL) {
+        setEntries([]);
+        return;
+      }
+
       const response = await fetch(MARKETPLACE_REGISTRY_URL);
 
       if (!response.ok) {

@@ -11,19 +11,34 @@ import {
   usePublicServerSettings
 } from '@/features/server/hooks';
 import { useFlatPluginCommands } from '@/features/server/plugins/hooks';
-import { useUploadFiles } from '@/hooks/use-upload-files';
+import { getFileNameWithLockedExtension } from '@/helpers/file-name';
+import { getFileUrl } from '@/helpers/get-file-url';
+import { useUploadFiles, type TDisplayItem } from '@/hooks/use-upload-files';
 import { getTRPCClient } from '@/lib/trpc';
 import type { TReplyTarget } from '@/types';
-import type { TJoinedPublicUser, TTempFile } from '@sharkord/shared';
+import type {
+  TFile,
+  TJoinedMessage,
+  TJoinedPublicUser,
+  TTempFile
+} from '@mikotord/shared';
 import {
   ChannelPermission,
   isEmptyMessage,
   Permission,
   PluginSlot
-} from '@sharkord/shared';
-import { Button, Spinner } from '@sharkord/ui';
+} from '@mikotord/shared';
+import { Button, Spinner } from '@mikotord/ui';
 import { filesize } from 'filesize';
-import { Paperclip, Reply, Send, Smile, X } from 'lucide-react';
+import {
+  Check,
+  Pencil,
+  Plus,
+  Reply,
+  SendHorizontal,
+  Smile,
+  X
+} from 'lucide-react';
 import {
   memo,
   useCallback,
@@ -38,7 +53,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_MAX_HEIGHT_VH } from '../channel-view/text/helpers';
 import { useMessageAuthorName } from '../channel-view/text/hooks/use-message-author-name';
-import { PreviewFile } from '../channel-view/text/preview-file';
+import { TextFileTabs } from '../channel-view/text/text-file-tabs';
 import { UsersTypingIndicator } from '../channel-view/text/users-typing';
 import { useFileAwareHeight } from './hooks';
 
@@ -47,6 +62,13 @@ type TMessageComposeProps = {
   message: string;
   onMessageChange: (value: string) => void;
   onSend: (message: string, files: TTempFile[]) => Promise<boolean>;
+  editingMessage?: TJoinedMessage;
+  onSaveEdit?: (
+    message: TJoinedMessage,
+    content: string,
+    files: TMessageComposeFile[]
+  ) => Promise<boolean>;
+  onCancelEdit?: () => void;
   onTyping: () => void;
   typingUsers: TJoinedPublicUser[];
   showPluginSlot?: boolean;
@@ -63,8 +85,24 @@ type TMessageComposeProps = {
 
 type TMessageComposeHandle = {
   clearFiles: () => void;
+  discardFiles: () => void;
   focus: () => void;
 };
+
+type TMessageComposeFile =
+  | {
+      type: 'existing';
+      id: number;
+      name: string;
+    }
+  | {
+      type: 'temporary';
+      id: string;
+      name: string;
+    };
+
+const getRenamedExistingFileName = (file: TFile, name: string) =>
+  getFileNameWithLockedExtension(file.originalName, file.extension, name);
 
 const MessageCompose = memo(
   ({
@@ -72,6 +110,9 @@ const MessageCompose = memo(
     message,
     onMessageChange,
     onSend,
+    editingMessage,
+    onSaveEdit,
+    onCancelEdit,
     onTyping,
     typingUsers,
     showPluginSlot = false,
@@ -91,6 +132,8 @@ const MessageCompose = memo(
     const containerRef = composeContainerRef ?? internalContainerRef;
     const tiptapRef = useRef<TTiptapInputHandle>(null);
     const [sending, setSending] = useState(false);
+    const [editingFiles, setEditingFiles] = useState<TFile[]>([]);
+    const [attachmentLayoutVersion, setAttachmentLayoutVersion] = useState(0);
     const can = useCan();
     const channelCan = useChannelCan(channelId);
     const channel = useChannelById(channelId);
@@ -136,51 +179,121 @@ const MessageCompose = memo(
       files,
       displayItems,
       removeFile,
+      renameFile,
       clearFiles,
       uploading,
       uploadingSize,
       uploadSpeed,
       openFileDialog,
       fileInputProps
-    } = useUploadFiles(channelId, containerRef, !canSendMessages);
+    } = useUploadFiles(
+      channelId,
+      containerRef,
+      !canSendMessages
+    );
+
+    const editingDisplayItems = useMemo<TDisplayItem[]>(
+      () =>
+        editingFiles.map((file) => ({
+          id: `existing-${file.id}`,
+          name: file.originalName,
+          size: file.size,
+          extension: file.extension,
+          mimeType: file.mimeType,
+          previewUrl: getFileUrl(file),
+          existingFile: file
+        })),
+      [editingFiles]
+    );
+    const composeDisplayItems = useMemo(
+      () => [...editingDisplayItems, ...displayItems],
+      [displayItems, editingDisplayItems]
+    );
 
     useFileAwareHeight({
       containerRef,
       composeContainerRef,
-      displayItems,
+      displayItems: composeDisplayItems,
+      layoutVersion: attachmentLayoutVersion,
       inputStorageKey,
       inputDefaultMaxHeightVh
     });
 
+    const discardFiles = useCallback(() => {
+      const trpc = getTRPCClient();
+
+      for (const file of files) {
+        trpc.files.deleteTemporary.mutate({ fileId: file.id }).catch(() => {
+          // ignore cleanup errors
+        });
+      }
+
+      clearFiles();
+    }, [clearFiles, files]);
+
     useImperativeHandle(
       ref,
-      () => ({ clearFiles, focus: () => tiptapRef.current?.focus() }),
-      [clearFiles]
+      () => ({
+        clearFiles,
+        discardFiles,
+        focus: () => tiptapRef.current?.focus()
+      }),
+      [clearFiles, discardFiles]
     );
 
+    const uploadedFileCount = files.length + editingFiles.length;
+    const hasSendableContent =
+      !isEmptyMessage(message) || uploadedFileCount > 0;
+    const canSubmitMessage =
+      hasSendableContent && canSendMessages && !uploading && !sending;
+
+    useEffect(() => {
+      setEditingFiles(editingMessage?.files ?? []);
+
+      if (editingMessage) {
+        onMessageChange(editingMessage.content ?? '');
+      }
+    }, [editingMessage, onMessageChange]);
+
+    const handleCancelEdit = useCallback(() => {
+      discardFiles();
+      setEditingFiles([]);
+      onCancelEdit?.();
+    }, [discardFiles, onCancelEdit]);
+
     const handleSend = useCallback(async () => {
-      if (
-        (isEmptyMessage(message) && !files.length) ||
-        !canSendMessages ||
-        sendingRef.current
-      ) {
+      if (!hasSendableContent || !canSendMessages || sendingRef.current) {
         return;
       }
 
       setSending(true);
       sendingRef.current = true;
 
-      const maxFilesPerMessage =
-        publicSettings?.storageMaxFilesPerMessage ?? Number.MAX_SAFE_INTEGER;
-      const filesToSend = files.slice(0, Math.max(0, maxFilesPerMessage));
+      const filesToSend = files;
+      const filesToSave: TMessageComposeFile[] = [
+        ...editingFiles.map((file) => ({
+          type: 'existing' as const,
+          id: file.id,
+          name: file.originalName
+        })),
+        ...filesToSend.map((file) => ({
+          type: 'temporary' as const,
+          id: file.id,
+          name: file.originalName
+        }))
+      ];
 
-      const success = await onSend(message, filesToSend);
+      const success =
+        editingMessage && onSaveEdit
+          ? await onSaveEdit(editingMessage, message, filesToSave)
+          : await onSend(message, filesToSend);
 
       sendingRef.current = false;
       setSending(false);
 
       if (success) {
         clearFiles();
+        setEditingFiles([]);
 
         // if we were pinned down to the min then unpin now
         const el = containerRef.current;
@@ -195,10 +308,13 @@ const MessageCompose = memo(
     }, [
       message,
       files,
+      editingFiles,
+      editingMessage,
+      hasSendableContent,
       canSendMessages,
       onSend,
+      onSaveEdit,
       clearFiles,
-      publicSettings,
       containerRef,
       inputDefaultMaxHeightVh
     ]);
@@ -217,6 +333,72 @@ const MessageCompose = memo(
       },
       [removeFile]
     );
+
+    const removeComposeFile = useCallback(
+      (item: TDisplayItem) => {
+        if (item.existingFile) {
+          setEditingFiles((current) =>
+            current.filter((file) => file.id !== item.existingFile!.id)
+          );
+          return;
+        }
+
+        if (item.file) {
+          void onRemoveFileClick(item.file.id);
+        }
+      },
+      [onRemoveFileClick]
+    );
+
+    const renameComposeFile = useCallback(
+      (item: TDisplayItem, name: string) => {
+        if (item.existingFile) {
+          setEditingFiles((current) =>
+            current.map((file) =>
+              file.id === item.existingFile!.id
+                ? {
+                    ...file,
+                    originalName: getRenamedExistingFileName(file, name)
+                  }
+                : file
+            )
+          );
+          return;
+        }
+
+        if (item.file) {
+          renameFile(item.file.id, name);
+        }
+      },
+      [renameFile]
+    );
+
+    const composeAttachmentFiles = useMemo(
+      () =>
+        composeDisplayItems.map((item) => ({
+          key: item.id,
+          originalName: item.name,
+          size: item.size,
+          extension: item.extension,
+          mimeType: item.mimeType,
+          href: item.existingFile ? getFileUrl(item.existingFile) : item.previewUrl,
+          previewUrl: item.previewUrl,
+          sourceFile: item.sourceFile,
+          progress: item.progress,
+          onRemove:
+            item.existingFile || item.file
+              ? () => removeComposeFile(item)
+              : undefined,
+          onRename:
+            item.existingFile || item.file
+              ? (name: string) => renameComposeFile(item, name)
+              : undefined
+        })),
+      [composeDisplayItems, removeComposeFile, renameComposeFile]
+    );
+    const requestAttachmentLayout = useCallback(() => {
+      setAttachmentLayoutVersion((version) => version + 1);
+    }, []);
 
     useEffect(() => {
       // focus the input when user clicks on reply
@@ -248,7 +430,7 @@ const MessageCompose = memo(
         <UsersTypingIndicator typingUsers={typingUsers} />
 
         <div
-          className={`compose-scroll-row flex items-start flex-1 overflow-y-auto cursor-text${uploading ? ' bg-muted' : ''}`}
+          className={`compose-scroll-row flex flex-col flex-1 overflow-y-auto cursor-text${uploading ? ' bg-muted' : ''}`}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               tiptapRef.current?.focus();
@@ -256,7 +438,24 @@ const MessageCompose = memo(
           }}
         >
           <div className="flex flex-1 flex-col">
-            {replyTarget && (
+            {editingMessage && (
+              <div className="mx-2 mt-3 flex items-center justify-between rounded-md border border-border/60 bg-secondary/40 px-2 py-1 text-xs">
+                <div className="min-w-0 flex items-center gap-1.5 text-muted-foreground">
+                  <Pencil className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('editMessage')}</span>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 shrink-0"
+                  onClick={handleCancelEdit}
+                  title={t('cancel')}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            {!editingMessage && replyTarget && (
               <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/40 mx-2 mt-3 px-2 py-1 text-xs">
                 <div className="min-w-0 flex items-center gap-1.5 text-muted-foreground">
                   <Reply className="h-3.5 w-3.5 shrink-0" />
@@ -276,25 +475,19 @@ const MessageCompose = memo(
             {uploading && (
               <div className="flex items-center gap-2 px-2 pt-2">
                 <div className="text-xs text-muted-foreground mb-1">
-                  Uploading files ({filesize(uploadingSize)})
+                  {t('uploadingFiles', { size: filesize(uploadingSize) })}
                   {uploadSpeed > 0 && ` - ${filesize(uploadSpeed)}/s`}
                 </div>
                 <Spinner size="xxs" />
               </div>
             )}
-            {displayItems.length > 0 && (
-              <div className="flex gap-1 flex-wrap px-4 pt-4">
-                {displayItems.map((item) => (
-                  <PreviewFile
-                    key={item.id}
-                    item={item}
-                    onRemove={
-                      item.file
-                        ? () => onRemoveFileClick(item.file!.id)
-                        : undefined
-                    }
-                  />
-                ))}
+            {composeAttachmentFiles.length > 0 && (
+              <div className="message-attachments flex w-fit max-w-full flex-wrap items-start gap-2 px-3 pt-3 [&:has([data-attachment-expanded=true])]:w-full">
+                <TextFileTabs
+                  files={composeAttachmentFiles}
+                  context="compose"
+                  onLayoutChange={requestAttachmentLayout}
+                />
               </div>
             )}
             <TiptapInput
@@ -312,38 +505,55 @@ const MessageCompose = memo(
           </div>
 
           <input {...fileInputProps} />
-          <div className="flex items-start pr-4 pt-2 shrink-0 sticky top-0">
-            {showPluginSlot && (
-              <PluginSlotRenderer slotId={PluginSlot.CHAT_ACTIONS} />
-            )}
-
-            <EmojiPicker
-              onEmojiSelect={(emoji) => tiptapRef.current?.insertEmoji(emoji)}
-            >
+          <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-1">
               <Button
                 size="icon"
                 variant="ghost"
-                disabled={uploading || !canSendMessages}
+                className="h-9 w-9 rounded-full bg-transparent hover:bg-transparent hover:text-foreground"
+                disabled={uploading || !canUploadFiles}
+                onClick={() => openFileDialog('*')}
+                title={t('insertAttachment')}
               >
-                <Smile className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
               </Button>
-            </EmojiPicker>
-            <Button
-              size="icon"
-              variant="ghost"
-              disabled={uploading || !canUploadFiles}
-              onClick={openFileDialog}
-            >
-              <Paperclip className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={handleSend}
-              disabled={uploading || sending || !canSendMessages}
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+
+              <EmojiPicker
+                onEmojiSelect={(emoji) => tiptapRef.current?.insertEmoji(emoji)}
+              >
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={uploading || !canSendMessages}
+                >
+                  <Smile className="h-5 w-5" />
+                </Button>
+              </EmojiPicker>
+
+              {showPluginSlot && (
+                <PluginSlotRenderer slotId={PluginSlot.CHAT_ACTIONS} />
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground disabled:bg-transparent"
+                onClick={handleSend}
+                title={editingMessage ? t('saveChanges') : undefined}
+                disabled={!canSubmitMessage}
+              >
+                {editingMessage ? (
+                  <Check className="h-5 w-5" />
+                ) : (
+                  <SendHorizontal
+                    className="h-5 w-5"
+                    fill={canSubmitMessage ? 'currentColor' : 'none'}
+                  />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -351,4 +561,4 @@ const MessageCompose = memo(
   }
 );
 
-export { MessageCompose, type TMessageComposeHandle };
+export { MessageCompose, type TMessageComposeFile, type TMessageComposeHandle };

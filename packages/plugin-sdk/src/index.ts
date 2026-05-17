@@ -11,46 +11,15 @@ import type {
   TPluginSettingDefinition,
   TPluginStore,
   TPluginStoreState
-} from '@sharkord/shared';
-import { FileSaveType, PLUGIN_SDK_VERSION, PluginSlot } from '@sharkord/shared';
-import type { AppData, Producer, Router } from 'mediasoup/types';
-
-export type TCreateStreamOptions = {
-  channelId: number;
-  title: string;
-  key: string;
-  avatarUrl?: string;
-  bannerUrl?: string;
-  producers: {
-    audio?: Producer;
-    video?: Producer;
-  };
-};
-
-export type TExternalStreamHandle = {
-  streamId: number;
-  remove: () => void;
-  update: (options: {
-    title?: string;
-    avatarUrl?: string;
-    bannerUrl?: string;
-    producers?: {
-      audio?: Producer;
-      video?: Producer;
-    };
-  }) => void;
-};
+} from '@mikotord/shared';
+import { FileSaveType, PLUGIN_SDK_VERSION, PluginSlot } from '@mikotord/shared';
 
 export type ServerEvent =
   | 'user:joined'
   | 'user:left'
-  | 'user:joined_voice'
-  | 'user:left_voice'
   | 'message:created'
   | 'message:updated'
   | 'message:deleted'
-  | 'voice:runtime_initialized'
-  | 'voice:runtime_closed'
   | 'setting:set';
 
 export interface EventPayloads {
@@ -61,14 +30,6 @@ export interface EventPayloads {
   'user:left': {
     userId: number;
     username: string;
-  };
-  'user:joined_voice': {
-    userId: number;
-    channelId: number;
-  };
-  'user:left_voice': {
-    userId: number;
-    channelId: number;
   };
   'message:created': {
     messageId: number;
@@ -88,12 +49,6 @@ export interface EventPayloads {
   };
   'message:deleted': {
     messageId: number;
-    channelId: number;
-  };
-  'voice:runtime_initialized': {
-    channelId: number;
-  };
-  'voice:runtime_closed': {
     channelId: number;
   };
   'setting:set': {
@@ -155,15 +110,6 @@ export interface PluginContext {
     register<TPayload = void>(action: ActionDefinition<TPayload>): void;
   };
 
-  voice: {
-    getRouter(channelId: number): Router<AppData>;
-    createStream(options: TCreateStreamOptions): TExternalStreamHandle;
-    getListenInfo(): {
-      ip: string;
-      announcedAddress: string | undefined;
-    };
-  };
-
   messages: {
     send(
       channelId: number,
@@ -206,25 +152,10 @@ export interface PluginContext {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface UnloadPluginContext extends Pick<
   PluginContext,
-  'path' | 'logger' | 'log' | 'debug' | 'error' | 'voice' | 'messages' | 'ui'
+  'path' | 'logger' | 'log' | 'debug' | 'error' | 'messages' | 'ui'
 > {}
 
-type TSharkordState = ReturnType<TPluginStore['getState']>;
-
-// re-export mediasoup types for plugin usage
-export type {
-  AppData,
-  MediaKind,
-  PlainTransport,
-  PlainTransportOptions,
-  Producer,
-  ProducerOptions,
-  Router,
-  RtpCodecCapability,
-  RtpEncodingParameters,
-  RtpParameters,
-  Transport
-} from 'mediasoup/types';
+type TMikotordState = ReturnType<TPluginStore['getState']>;
 
 export type {
   ActionDefinition,
@@ -238,7 +169,7 @@ export type {
   TPluginComponentsMapBySlotId,
   TPluginStore,
   TPluginStoreState,
-  TSharkordState
+  TMikotordState
 };
 
 export * from './actions';

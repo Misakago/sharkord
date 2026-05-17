@@ -6,11 +6,11 @@ import { uploadImage } from '@/helpers/upload-file';
 import { useFilePicker } from '@/hooks/use-file-picker';
 import { useForm } from '@/hooks/use-form';
 import { getTRPCClient } from '@/lib/trpc';
-import { AvatarImage } from '@radix-ui/react-avatar';
-import { getTrpcError } from '@sharkord/shared';
+import { getTrpcError } from '@mikotord/shared';
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
   Button,
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import {
   IconButton,
   Input,
   Textarea
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Upload, X } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -109,7 +109,6 @@ const WelcomeProfileSetupDialog = memo(
       try {
         await trpc.users.update.mutate({
           name: values.name.trim(),
-          bannerColor: ownPublicUser.bannerColor ?? '#FFFFFF',
           bio: trimmedBio || undefined
         });
 
@@ -132,7 +131,7 @@ const WelcomeProfileSetupDialog = memo(
           <DialogHeader>
             <DialogTitle>
               {t('welcomeProfileSetupTitle', {
-                serverName: serverName ?? 'Sharkord'
+                serverName: serverName ?? 'Mikotord'
               })}
             </DialogTitle>
             <DialogDescription>
@@ -154,16 +153,11 @@ const WelcomeProfileSetupDialog = memo(
                     className="w-full h-28 object-cover transition-opacity group-hover:opacity-70"
                   />
                 ) : (
-                  <div
-                    className="w-full h-28 border-b border-border transition-opacity group-hover:opacity-70"
-                    style={{
-                      background: ownPublicUser.bannerColor || '#5865f2'
-                    }}
-                  />
+                  <div className="w-full h-28 border-b border-border bg-card transition-opacity group-hover:opacity-70" />
                 )}
 
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="bg-black/50 rounded-full p-2">
+                  <div className="bg-black/50 rounded-lg p-2">
                     <Upload className="h-5 w-5 text-white" />
                   </div>
                 </div>
@@ -187,7 +181,7 @@ const WelcomeProfileSetupDialog = memo(
                   className="relative group cursor-pointer w-20 h-20"
                   onClick={onAvatarClick}
                 >
-                  <Avatar className="h-20 w-20 rounded-full bg-muted border-4 border-card transition-opacity group-hover:opacity-40">
+                  <Avatar className="h-20 w-20 border-4 border-card bg-[#e5e5e5] transition-opacity group-hover:opacity-40 dark:bg-[#333333]">
                     <AvatarImage
                       src={getFileUrl(ownPublicUser.avatar)}
                       key={ownPublicUser.avatarId}
@@ -197,8 +191,8 @@ const WelcomeProfileSetupDialog = memo(
                     </AvatarFallback>
                   </Avatar>
 
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                    <div className="bg-black/50 rounded-full p-2">
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                    <div className="bg-black/50 rounded-lg p-2">
                       <Upload className="h-5 w-5 text-white" />
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import { DELETED_USER_IDENTITY_AND_NAME } from '@sharkord/shared';
+import { DELETED_USER_IDENTITY_AND_NAME } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
@@ -16,9 +16,6 @@ const updateUserRoute = protectedProcedure
         .refine((val) => val !== DELETED_USER_IDENTITY_AND_NAME, {
           message: 'Protected username'
         }),
-      bannerColor: z
-        .string()
-        .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Invalid hex color'),
       bio: z.string().max(160).optional()
     })
   )
@@ -27,7 +24,6 @@ const updateUserRoute = protectedProcedure
       .update(users)
       .set({
         name: input.name,
-        bannerColor: input.bannerColor,
         bio: input.bio ?? null
       })
       .where(eq(users.id, ctx.userId))

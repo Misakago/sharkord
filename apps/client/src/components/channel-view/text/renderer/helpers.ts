@@ -1,4 +1,4 @@
-import type { TJoinedMessage } from '@sharkord/shared';
+import type { TJoinedMessage } from '@mikotord/shared';
 import type {
   TFoundMedia,
   TFoundOpenGraph,
@@ -27,30 +27,6 @@ const getDisplayHostname = (href: string): string => {
   }
 };
 
-const getYoutubeVideoId = (url: URL) => {
-  const hostname = url.hostname.replace(/^www\./, '');
-
-  if (hostname === 'youtu.be') {
-    return url.pathname.split('/').filter(Boolean)[0] ?? undefined;
-  }
-
-  if (!hostname.endsWith('youtube.com')) {
-    return undefined;
-  }
-
-  const [firstSegment, secondSegment] = url.pathname.split('/').filter(Boolean);
-
-  if (url.pathname === '/watch') {
-    return url.searchParams.get('v') ?? undefined;
-  }
-
-  if (firstSegment && ['shorts', 'embed', 'v', 'live'].includes(firstSegment)) {
-    return secondSegment ?? undefined;
-  }
-
-  return undefined;
-};
-
 const getTweetInfo = (
   href: string
 ): {
@@ -74,37 +50,13 @@ const getTweetInfo = (
   return { isTweet: false, tweetId: undefined };
 };
 
-const getYoutubeInfo = (
-  href: string
-): {
-  isYoutube: boolean;
-  videoId: string | undefined;
-} => {
-  try {
-    const url = new URL(href);
-    const videoId = getYoutubeVideoId(url);
-
-    return { isYoutube: !!videoId, videoId };
-  } catch {
-    // ignore
-  }
-
-  return { isYoutube: false, videoId: undefined };
-};
-
 const hasSpecializedLinkOverride = (href: string): boolean => {
   const { isTweet } = getTweetInfo(href);
 
-  if (isTweet) {
-    return true;
-  }
-
-  const { isYoutube } = getYoutubeInfo(href);
-
-  return isYoutube;
+  return isTweet;
 };
 
-const DIRECT_MEDIA_TYPES = new Set(['image', 'video', 'audio']);
+const DIRECT_MEDIA_TYPES = new Set(['image']);
 
 const isMediaMetadata = (metadata: TMessageMetadataLike | null | undefined) => {
   return !!metadata?.mediaType && DIRECT_MEDIA_TYPES.has(metadata.mediaType);
@@ -174,8 +126,6 @@ export {
   extractMessageOpenGraph,
   getDisplayHostname,
   getTweetInfo,
-  getYoutubeInfo,
-  getYoutubeVideoId,
   hasSpecializedLinkOverride,
   normalizeComparableUrl
 };

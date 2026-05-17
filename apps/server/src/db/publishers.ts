@@ -2,7 +2,7 @@ import {
   ChannelPermission,
   ServerEvents,
   type TChannelUserPermissionsMap
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { count, eq } from 'drizzle-orm';
 import { db } from '.';
 import { pluginManager } from '../plugins';

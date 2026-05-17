@@ -1,9 +1,8 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@sharkord/ui';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@mikotord/ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TServerScreenBaseProps } from '../screens';
 import { ServerScreenLayout } from '../server-screen-layout';
-import { Devices } from './devices';
 import { Notifications } from './notifications';
 import { Others } from './others';
 import { Password } from './password';
@@ -20,7 +19,6 @@ const UserSettings = memo(({ close }: TUserSettingsProps) => {
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="profile">{t('profileTab')}</TabsTrigger>
-            <TabsTrigger value="devices">{t('devicesTab')}</TabsTrigger>
             <TabsTrigger value="password">{t('passwordTab')}</TabsTrigger>
             <TabsTrigger value="notifications">
               {t('notificationsTab')}
@@ -30,9 +28,6 @@ const UserSettings = memo(({ close }: TUserSettingsProps) => {
 
           <TabsContent value="profile" className="space-y-6">
             <Profile />
-          </TabsContent>
-          <TabsContent value="devices" className="space-y-6">
-            <Devices />
           </TabsContent>
           <TabsContent value="password" className="space-y-6">
             <Password />

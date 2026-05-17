@@ -1,4 +1,4 @@
-import { type TPluginInfo } from '@sharkord/shared';
+import { type TPluginInfo } from '@mikotord/shared';
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import fs from 'fs/promises';

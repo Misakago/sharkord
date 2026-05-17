@@ -2,8 +2,8 @@ import {
   ChannelPermission,
   DEFAULT_MESSAGES_LIMIT,
   type TMessage
-} from '@sharkord/shared';
-import { and, asc, eq, gt } from 'drizzle-orm';
+} from '@mikotord/shared';
+import { and, asc, desc, eq, gt, lt } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
 import { assertDmChannel } from '../../db/queries/dms';
@@ -17,12 +17,13 @@ const getThreadMessagesRoute = protectedProcedure
     z.object({
       parentMessageId: z.number(),
       cursor: z.number().nullish(),
+      targetMessageId: z.number().nullish(),
       limit: z.number().default(DEFAULT_MESSAGES_LIMIT)
     })
   )
   .meta({ infinite: true })
   .query(async ({ ctx, input }) => {
-    const { parentMessageId, cursor, limit } = input;
+    const { parentMessageId, cursor, limit, targetMessageId } = input;
 
     const parentMessage = await db
       .select()
@@ -62,28 +63,82 @@ const getThreadMessagesRoute = protectedProcedure
       message: 'Channel not found'
     });
 
-    const rows: TMessage[] = await db
-      .select()
-      .from(messages)
-      .where(
-        cursor
-          ? and(
-              eq(messages.parentMessageId, parentMessageId),
-              gt(messages.createdAt, cursor)
-            )
-          : eq(messages.parentMessageId, parentMessageId)
-      )
-      .orderBy(asc(messages.createdAt))
-      .limit(limit + 1);
-
+    let rows: TMessage[];
     let nextCursor: number | null = null;
 
-    if (rows.length > limit) {
-      rows.pop();
+    if (targetMessageId) {
+      const targetMessage = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.id, targetMessageId),
+            eq(messages.parentMessageId, parentMessageId)
+          )
+        )
+        .limit(1)
+        .get();
 
-      const lastReturnedMessage = rows.at(-1);
+      invariant(targetMessage, {
+        code: 'NOT_FOUND',
+        message: 'Target reply not found'
+      });
 
-      nextCursor = lastReturnedMessage ? lastReturnedMessage.createdAt : null;
+      const olderMessages = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.parentMessageId, parentMessageId),
+            lt(messages.createdAt, targetMessage.createdAt)
+          )
+        )
+        .orderBy(desc(messages.createdAt))
+        .limit(20);
+
+      const newerMessages = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.parentMessageId, parentMessageId),
+            gt(messages.createdAt, targetMessage.createdAt)
+          )
+        )
+        .orderBy(asc(messages.createdAt))
+        .limit(limit + 1);
+
+      if (newerMessages.length > limit) {
+        newerMessages.pop();
+
+        const lastReturnedMessage = newerMessages.at(-1) ?? targetMessage;
+
+        nextCursor = lastReturnedMessage.createdAt;
+      }
+
+      rows = [...olderMessages.reverse(), targetMessage, ...newerMessages];
+    } else {
+      rows = await db
+        .select()
+        .from(messages)
+        .where(
+          cursor
+            ? and(
+                eq(messages.parentMessageId, parentMessageId),
+                gt(messages.createdAt, cursor)
+              )
+            : eq(messages.parentMessageId, parentMessageId)
+        )
+        .orderBy(asc(messages.createdAt))
+        .limit(limit + 1);
+
+      if (rows.length > limit) {
+        rows.pop();
+
+        const lastReturnedMessage = rows.at(-1);
+
+        nextCursor = lastReturnedMessage ? lastReturnedMessage.createdAt : null;
+      }
     }
 
     if (rows.length === 0) {

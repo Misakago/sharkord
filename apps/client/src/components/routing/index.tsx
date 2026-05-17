@@ -12,7 +12,7 @@ import { Connect } from '@/screens/connect';
 import { Disconnected } from '@/screens/disconnected';
 import { LoadingApp } from '@/screens/loading-app';
 import { ServerView } from '@/screens/server-view';
-import { DisconnectCode } from '@sharkord/shared';
+import { DisconnectCode } from '@mikotord/shared';
 import { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -27,11 +27,11 @@ const Routing = memo(() => {
 
   useEffect(() => {
     if (isConnected && serverName) {
-      document.title = `${serverName} - Sharkord`;
+      document.title = `${serverName} - Mikotord`;
       return;
     }
 
-    document.title = 'Sharkord';
+    document.title = 'Mikotord';
   }, [isConnected, serverName]);
 
   if (isAppLoading || isPluginsLoading) {

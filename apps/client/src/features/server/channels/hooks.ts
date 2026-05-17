@@ -7,9 +7,7 @@ import {
   channelsByCategoryIdSelector,
   channelsMapSelector,
   channelsSelector,
-  currentVoiceChannelIdSelector,
   directMessagesUnreadCountSelector,
-  isCurrentVoiceChannelSelectedSelector,
   selectedChannelIdSelector,
   selectedChannelSelector,
   selectedChannelTypeSelector
@@ -30,12 +28,6 @@ export const useSelectedChannelId = () =>
   useSelector(selectedChannelIdSelector);
 
 export const useSelectedChannel = () => useSelector(selectedChannelSelector);
-
-export const useCurrentVoiceChannelId = () =>
-  useSelector(currentVoiceChannelIdSelector);
-
-export const useIsCurrentVoiceChannelSelected = () =>
-  useSelector(isCurrentVoiceChannelSelectedSelector);
 
 export const useChannelPermissionsById = (channelId: number) =>
   useSelector((state: IRootState) =>

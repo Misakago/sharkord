@@ -1,11 +1,31 @@
-import type { TJoinedSettings, TPublicServerSettings } from '@sharkord/shared';
+import type { TJoinedSettings, TPublicServerSettings } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '..';
-import { config } from '../../config';
 import { files, settings } from '../schema';
 
 // since this is static, we can keep it in memory to avoid querying the DB every time
 let token: string;
+
+const BRAND_PATTERN = /\b(?:sharkord|mikotord)\b/gi;
+
+const sanitizeBrandText = (value: string) =>
+  value
+    .replace(BRAND_PATTERN, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const sanitizeBrandName = (name: string) => sanitizeBrandText(name) || 'Server';
+
+const sanitizeBrandDescription = (description?: string | null) => {
+  const value = description ?? '';
+  const cleaned = sanitizeBrandText(value);
+
+  if (/^this is the default server description\. change me in the server settings!$/i.test(cleaned)) {
+    return '';
+  }
+
+  return cleaned;
+};
 
 const getSettings = async (): Promise<TJoinedSettings> => {
   const serverSettings = await db.select().from(settings).get();
@@ -30,6 +50,8 @@ const getSettings = async (): Promise<TJoinedSettings> => {
 
   return {
     ...serverSettings,
+    name: sanitizeBrandName(serverSettings.name),
+    description: sanitizeBrandDescription(serverSettings.description),
     logo: logo ?? null
   };
 };
@@ -53,7 +75,6 @@ const getPublicSettings: () => Promise<TPublicServerSettings> = async () => {
     storageSpaceQuotaByUser: settings.storageSpaceQuotaByUser,
     storageOverflowAction: settings.storageOverflowAction,
     enablePlugins: settings.enablePlugins,
-    webRtcMaxBitrate: config.webRtc.maxBitrate,
     enableSearch: settings.enableSearch,
     showWelcomeDialog: settings.showWelcomeDialog,
     storageSignedUrlsEnabled: settings.storageSignedUrlsEnabled

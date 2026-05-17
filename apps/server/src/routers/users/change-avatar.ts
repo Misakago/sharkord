@@ -1,4 +1,4 @@
-import { FileSaveType } from '@sharkord/shared';
+import { FileSaveType } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import z from 'zod';
 import { db } from '../../db';

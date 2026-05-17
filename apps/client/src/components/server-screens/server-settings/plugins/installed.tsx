@@ -2,8 +2,8 @@ import { Dialog } from '@/components/dialogs/dialogs';
 import { openDialog, requestConfirmation } from '@/features/dialogs/actions';
 import { usePluginsEnabled } from '@/features/server/hooks';
 import { getTRPCClient } from '@/lib/trpc';
-import type { TPluginInfo } from '@sharkord/shared';
-import { getTrpcError } from '@sharkord/shared';
+import type { TPluginInfo } from '@mikotord/shared';
+import { getTrpcError } from '@mikotord/shared';
 import {
   Alert,
   AlertDescription,
@@ -14,7 +14,7 @@ import {
   LoadingCard,
   Switch,
   Tooltip
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import {
   AlertCircle,
   FileText,
@@ -102,11 +102,11 @@ const PluginItem = memo(({ plugin, onToggle, onRemove }: TPluginItemProps) => {
           <ImageWithFallback
             src={plugin.logo}
             alt={`${plugin.name} logo`}
-            className="w-12 h-12 rounded-md object-cover"
+            className="w-12 h-12 rounded-lg object-cover"
             iconFallback={<Package className="w-6 h-6 text-muted-foreground" />}
           />
         ) : (
-          <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center">
+          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
             <Package className="w-6 h-6 text-muted-foreground" />
           </div>
         )}

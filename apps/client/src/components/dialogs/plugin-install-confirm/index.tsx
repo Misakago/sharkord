@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TDialogBaseProps } from '../types';
@@ -84,18 +84,6 @@ const PluginInstallConfirmDialog = memo(
 
             <p className="text-sm text-primary">
               {t('pluginInstallUseDocker')}
-            </p>
-
-            <p className="text-sm">
-              {t('pluginInstallDocsNote')}{' '}
-              <a
-                href="https://sharkord.com/docs/plugins/security"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-primary transition-colors"
-              >
-                https://sharkord.com/docs/plugins/security
-              </a>
             </p>
           </div>
           <AlertDialogFooter className="gap-2">

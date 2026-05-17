@@ -1,4 +1,4 @@
-import type { TBeforeFileSaveHook } from '@sharkord/shared';
+import type { TBeforeFileSaveHook } from '@mikotord/shared';
 
 class HooksManager {
   private beforeFileSaveHooks = new Map<string, TBeforeFileSaveHook[]>();

@@ -9,11 +9,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Color,
   Group,
   Input,
   Textarea
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -23,9 +22,8 @@ import { BannerManager } from './banner-manager';
 const Profile = memo(() => {
   const { t } = useTranslation('settings');
   const ownPublicUser = useOwnPublicUser();
-  const { setTrpcErrors, r, rr, values } = useForm({
+  const { setTrpcErrors, r, values } = useForm({
     name: ownPublicUser?.name ?? '',
-    bannerColor: ownPublicUser?.bannerColor ?? '#FFFFFF',
     bio: ownPublicUser?.bio ?? ''
   });
 
@@ -57,10 +55,6 @@ const Profile = memo(() => {
 
         <Group label={t('bioLabel')}>
           <Textarea placeholder={t('bioPlaceholder')} {...r('bio')} />
-        </Group>
-
-        <Group label={t('bannerColorLabel')}>
-          <Color {...rr('bannerColor')} defaultValue="#FFFFFF" />
         </Group>
 
         <BannerManager user={ownPublicUser} />

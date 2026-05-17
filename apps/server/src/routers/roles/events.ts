@@ -1,4 +1,4 @@
-import { ServerEvents } from '@sharkord/shared';
+import { ServerEvents } from '@mikotord/shared';
 import { protectedProcedure } from '../../utils/trpc';
 
 const onRoleCreateRoute = protectedProcedure.subscription(async ({ ctx }) => {

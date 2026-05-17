@@ -1,17 +1,12 @@
 import { getLocalStorageItem, LocalStorageKey } from '@/helpers/storage';
 import type { Locale } from 'date-fns';
-import { cs, enUS, es, fr, it, ru, zhCN } from 'date-fns/locale';
+import { enUS, zhCN } from 'date-fns/locale';
 import i18n from 'i18next';
 import resourcesToBackend from 'i18next-resources-to-backend';
 import { initReactI18next } from 'react-i18next';
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English', dateLocale: enUS }, // English should always be first
-  { code: 'cs', label: 'Čeština', dateLocale: cs },
-  { code: 'es', label: 'Español', dateLocale: es },
-  { code: 'fr', label: 'Français', dateLocale: fr },
-  { code: 'it', label: 'Italiano', dateLocale: it },
-  { code: 'ru', label: 'Русский', dateLocale: ru },
   { code: 'zh', label: '中文', dateLocale: zhCN }
 ] satisfies Array<{ code: string; label: string; dateLocale: Locale }>;
 
@@ -60,7 +55,6 @@ export const i18nReady = i18n
       'connect',
       'disconnected',
       'sidebar',
-      'topbar',
       'dialogs',
       'settings',
       'permissions'

@@ -1,7 +1,7 @@
 import { MessageRenderer } from '@/components/channel-view/text/renderer';
 import { PaginatedList } from '@/components/paginated-list';
 import { useDateLocale } from '@/hooks/use-date-locale';
-import type { TMessage } from '@sharkord/shared';
+import type { TMessage } from '@mikotord/shared';
 import { format } from 'date-fns';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,7 @@ const Messages = memo(() => {
         getItemKey={(message) => message.id}
       >
         {(message) => (
-          <div className="py-2 px-1 border-b border-border last:border-0 bg-secondary/50 rounded-md">
+          <div className="py-2 px-1 border-b border-border last:border-0 bg-accent rounded-md">
             <span className="text-xs text-muted-foreground">
               {format(new Date(message.createdAt), 'PPpp', {
                 locale: dateLocale

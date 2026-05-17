@@ -1,5 +1,3 @@
-import type { TPinnedCard } from '@/components/channel-view/voice/hooks/use-pin-card-controller';
-import { getLocalStorageItemBool, LocalStorageKey } from '@/helpers/storage';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type {
   TCategory,
@@ -7,8 +5,6 @@ import type {
   TChannelUserPermissionsMap,
   TCommandInfo,
   TCommandsMapByPlugin,
-  TExternalStream,
-  TExternalStreamsMap,
   TJoinedEmoji,
   TJoinedMessage,
   TJoinedPublicUser,
@@ -18,10 +14,8 @@ import type {
   TPluginMetadata,
   TPublicServerSettings,
   TReadStateMap,
-  TServerInfo,
-  TVoiceMap,
-  TVoiceUserState
-} from '@sharkord/shared';
+  TServerInfo
+} from '@mikotord/shared';
 import { mergeMessagesChronologically } from './helpers';
 import type {
   TDisconnectInfo,
@@ -39,7 +33,6 @@ export interface IServerState {
   emojis: TJoinedEmoji[];
   ownUserId: number | undefined;
   selectedChannelId: number | undefined;
-  currentVoiceChannelId: number | undefined;
   messagesMap: TMessagesMap;
   threadMessagesMap: TThreadMessagesMap;
   users: TJoinedPublicUser[];
@@ -53,19 +46,12 @@ export interface IServerState {
   threadTypingMap: {
     [parentMessageId: number]: number[];
   };
-  voiceMap: TVoiceMap;
-  externalStreamsMap: TExternalStreamsMap;
-  ownVoiceState: TVoiceUserState;
-  pinnedCard: TPinnedCard | undefined;
   channelPermissions: TChannelUserPermissionsMap;
   readStatesMap: {
     [channelId: number]: number | undefined;
   };
   pluginsMetadata: TPluginMetadata[];
   pluginCommands: TCommandsMapByPlugin;
-  hideNonVideoParticipants: boolean;
-  showUserBannersInVoice: boolean;
-  hideOwnScreenShare: boolean;
   pluginComponents: TPluginComponentsMap;
   activeFullscreenPluginId: string | undefined;
   dmsOpen: boolean;
@@ -81,7 +67,6 @@ const initialState: IServerState = {
   channels: [],
   emojis: [],
   selectedChannelId: undefined,
-  currentVoiceChannelId: undefined,
   messagesMap: {},
   threadMessagesMap: {},
   users: [],
@@ -91,34 +76,13 @@ const initialState: IServerState = {
   loadingInfo: false,
   typingMap: {},
   threadTypingMap: {},
-  voiceMap: {},
-  externalStreamsMap: {},
-  ownVoiceState: {
-    micMuted: false,
-    soundMuted: false,
-    webcamEnabled: false,
-    sharingScreen: false
-  },
-  pinnedCard: undefined,
   channelPermissions: {},
   readStatesMap: {},
   pluginsMetadata: [],
   pluginCommands: {},
-  hideNonVideoParticipants: getLocalStorageItemBool(
-    LocalStorageKey.HIDE_NON_VIDEO_PARTICIPANTS,
-    false
-  ),
-  showUserBannersInVoice: getLocalStorageItemBool(
-    LocalStorageKey.VOICE_CHAT_SHOW_USER_BANNERS,
-    true
-  ),
   pluginComponents: {},
   activeFullscreenPluginId: undefined,
-  dmsOpen: false,
-  hideOwnScreenShare: getLocalStorageItemBool(
-    LocalStorageKey.HIDE_OWN_SCREEN_SHARE,
-    false
-  )
+  dmsOpen: false
 };
 
 export const serverSlice = createSlice({
@@ -164,8 +128,6 @@ export const serverSlice = createSlice({
         roles: TJoinedRole[];
         emojis: TJoinedEmoji[];
         publicSettings: TPublicServerSettings | undefined;
-        voiceMap: TVoiceMap;
-        externalStreamsMap: TExternalStreamsMap;
         channelPermissions: TChannelUserPermissionsMap;
         readStates: TReadStateMap;
         pluginsMetadata: TPluginMetadata[];
@@ -179,8 +141,6 @@ export const serverSlice = createSlice({
       state.roles = action.payload.roles;
       state.ownUserId = action.payload.ownUserId;
       state.publicSettings = action.payload.publicSettings;
-      state.voiceMap = action.payload.voiceMap;
-      state.externalStreamsMap = action.payload.externalStreamsMap;
       state.serverId = action.payload.serverId;
       state.channelPermissions = action.payload.channelPermissions;
       state.readStatesMap = action.payload.readStates;
@@ -403,11 +363,6 @@ export const serverSlice = createSlice({
         );
       }
 
-      // remove user from voice channels
-      for (const channelId in state.voiceMap) {
-        delete state.voiceMap[channelId].users[userId];
-      }
-
       // remove user from messages and reactions
       for (const channelId in state.messagesMap) {
         state.messagesMap[channelId] = state.messagesMap[channelId]
@@ -449,11 +404,6 @@ export const serverSlice = createSlice({
         state.typingMap[channelId] = state.typingMap[channelId].filter(
           (id) => id !== userId
         );
-      }
-
-      // remove user from voice channels
-      for (const channelId in state.voiceMap) {
-        delete state.voiceMap[channelId].users[userId];
       }
 
       // reassign messages and reactions
@@ -577,12 +527,6 @@ export const serverSlice = createSlice({
         state.activeFullscreenPluginId = undefined;
       }
     },
-    setCurrentVoiceChannelId: (
-      state,
-      action: PayloadAction<number | undefined>
-    ) => {
-      state.currentVoiceChannelId = action.payload;
-    },
     setChannelPermissions: (
       state,
       action: PayloadAction<TChannelUserPermissionsMap>
@@ -663,116 +607,6 @@ export const serverSlice = createSlice({
         (c) => c.id !== action.payload.categoryId
       );
     },
-
-    // VOICE ------------------------------------------------------------
-
-    addUserToVoiceChannel: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        userId: number;
-        state: TVoiceUserState;
-      }>
-    ) => {
-      const { channelId, userId, state: userState } = action.payload;
-
-      if (!state.voiceMap[channelId]) {
-        state.voiceMap[channelId] = { users: {} };
-      }
-
-      state.voiceMap[channelId].users[userId] = userState;
-    },
-    removeUserFromVoiceChannel: (
-      state,
-      action: PayloadAction<{ channelId: number; userId: number }>
-    ) => {
-      const { channelId, userId } = action.payload;
-
-      if (!state.voiceMap[channelId]) return;
-
-      delete state.voiceMap[channelId].users[userId];
-    },
-    updateVoiceUserState: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        userId: number;
-        newState: Partial<TVoiceUserState>;
-      }>
-    ) => {
-      const { channelId, userId, newState } = action.payload;
-
-      if (!state.voiceMap[channelId]) return;
-      if (!state.voiceMap[channelId].users[userId]) return;
-
-      state.voiceMap[channelId].users[userId] = {
-        ...state.voiceMap[channelId].users[userId],
-        ...newState
-      };
-    },
-    updateOwnVoiceState: (
-      state,
-      action: PayloadAction<Partial<TVoiceUserState>>
-    ) => {
-      state.ownVoiceState = {
-        ...state.ownVoiceState,
-        ...action.payload
-      };
-    },
-    setPinnedCard: (state, action: PayloadAction<TPinnedCard | undefined>) => {
-      state.pinnedCard = action.payload;
-    },
-    setHideNonVideoParticipants: (state, action: PayloadAction<boolean>) => {
-      state.hideNonVideoParticipants = action.payload;
-    },
-    setShowUserBannersInVoice: (state, action: PayloadAction<boolean>) => {
-      state.showUserBannersInVoice = action.payload;
-    },
-    setHideOwnScreenShare: (state, action: PayloadAction<boolean>) => {
-      state.hideOwnScreenShare = action.payload;
-    },
-    addExternalStreamToChannel: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        streamId: number;
-        stream: TExternalStream;
-      }>
-    ) => {
-      const { channelId, streamId, stream } = action.payload;
-
-      if (!state.externalStreamsMap[channelId]) {
-        state.externalStreamsMap[channelId] = {};
-      }
-
-      state.externalStreamsMap[channelId][streamId] = stream;
-    },
-    updateExternalStreamInChannel: (
-      state,
-      action: PayloadAction<{
-        channelId: number;
-        streamId: number;
-        stream: TExternalStream;
-      }>
-    ) => {
-      const { channelId, streamId, stream } = action.payload;
-
-      if (!state.externalStreamsMap[channelId]) return;
-      if (!state.externalStreamsMap[channelId][streamId]) return;
-
-      state.externalStreamsMap[channelId][streamId] = stream;
-    },
-    removeExternalStreamFromChannel: (
-      state,
-      action: PayloadAction<{ channelId: number; streamId: number }>
-    ) => {
-      const { channelId, streamId } = action.payload;
-
-      if (!state.externalStreamsMap[channelId]) return;
-
-      delete state.externalStreamsMap[channelId][streamId];
-    },
-
     // PLUGINS ------------------------------------------------------------
 
     setPluginsMetadata: (state, action: PayloadAction<TPluginMetadata[]>) => {
@@ -850,7 +684,6 @@ export const serverSlice = createSlice({
       state.dmsOpen = action.payload;
 
       if (action.payload) {
-        state.selectedChannelId = undefined;
         state.activeFullscreenPluginId = undefined;
       }
     }

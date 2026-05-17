@@ -1,9 +1,10 @@
-import type { TMessageMetadata } from '@sharkord/shared';
+import type { TMessageMetadata } from '@mikotord/shared';
 
 export type TFoundMedia = {
   key: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image';
   url: string;
+  name?: string;
 };
 
 export type TFoundOpenGraph = {

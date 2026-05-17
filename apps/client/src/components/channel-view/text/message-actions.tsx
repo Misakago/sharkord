@@ -1,21 +1,15 @@
 import { EmojiPicker } from '@/components/emoji-picker';
 import { useRecentEmojis } from '@/components/emoji-picker/use-recent-emojis';
-import { Protect } from '@/components/protect';
-import {
-  shouldUseFallbackImage,
-  type TEmojiItem
-} from '@/components/tiptap-input/helpers';
+import type { TEmojiItem } from '@/components/tiptap-input/helpers';
 import { openThreadSidebar } from '@/features/app/actions';
 import { useIsShiftHeld } from '@/features/app/hooks';
 import { requestConfirmation } from '@/features/dialogs/actions';
 import { getTRPCClient } from '@/lib/trpc';
-import { Permission } from '@sharkord/shared';
-import { IconButton } from '@sharkord/ui';
+import { cn } from '@/lib/utils';
+import { IconButton } from '@mikotord/ui';
 import {
   MessageSquareText,
   Pencil,
-  Pin,
-  PinOff,
   Reply,
   Smile,
   Trash,
@@ -24,8 +18,7 @@ import {
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-
-const MAX_QUICK_EMOJIS = 4;
+import { MAX_QUICK_EMOJIS } from './message-actions-layout';
 
 type TMessageActionsProps = {
   messageId: number;
@@ -33,10 +26,11 @@ type TMessageActionsProps = {
   onEdit: () => void;
   onReply?: () => void;
   canManage: boolean;
+  canReact: boolean;
   editable: boolean;
   isThreadReply?: boolean;
-  isPinned?: boolean;
-  disablePin?: boolean;
+  visible: boolean;
+  onPointerEnter: () => void;
 };
 
 const MessageActions = memo(
@@ -45,11 +39,12 @@ const MessageActions = memo(
     messageId,
     channelId,
     canManage,
+    canReact,
     editable,
     isThreadReply,
-    isPinned,
-    disablePin,
-    onReply
+    onReply,
+    visible,
+    onPointerEnter
   }: TMessageActionsProps) => {
     const { t } = useTranslation();
     const { recentEmojis } = useRecentEmojis();
@@ -103,27 +98,20 @@ const MessageActions = memo(
       openThreadSidebar(messageId, channelId);
     }, [messageId, channelId]);
 
-    const onPinClick = useCallback(async () => {
-      const trpc = getTRPCClient();
-
-      try {
-        await trpc.messages.togglePin.mutate({ messageId });
-
-        toast.success(t('messagePinToggled'));
-      } catch (error) {
-        toast.error(t('failedTogglePin'));
-
-        console.error('Error toggling pin status:', error);
-      }
-    }, [messageId, t]);
-
     return (
-      <div className="gap-1 absolute right-0 -top-6 z-10 hidden group-hover:flex [&:has([data-state=open])]:flex items-center space-x-1 rounded-lg shadow-lg border border-border p-2 transition-all bg-background">
+      <div
+        className={cn(
+          'gap-1 absolute left-full bottom-0 z-10 translate-x-1 items-center rounded-lg shadow-lg border border-border p-2 bg-background [&:has([data-state=open])]:flex',
+          visible ? 'flex' : 'hidden'
+        )}
+        onPointerEnter={onPointerEnter}
+      >
         {onReply && (
           <IconButton
             size="sm"
             variant="ghost"
             icon={Reply}
+            className="h-6 w-6"
             onClick={onReply}
             title={t('replyToMessage')}
           />
@@ -133,6 +121,7 @@ const MessageActions = memo(
             size="sm"
             variant="ghost"
             icon={MessageSquareText}
+            className="h-6 w-6"
             onClick={onReplyClick}
             title={t('replyInThread')}
           />
@@ -143,6 +132,7 @@ const MessageActions = memo(
               size="sm"
               variant="ghost"
               icon={Pencil}
+              className="h-6 w-6"
               onClick={onEdit}
               disabled={!editable}
               title={t('editMessage')}
@@ -152,26 +142,14 @@ const MessageActions = memo(
               size="sm"
               variant="ghost"
               icon={isShiftHeld ? Trash2 : Trash}
-              className={isShiftHeld ? 'text-destructive' : ''}
+              className={cn('h-6 w-6', isShiftHeld && 'text-destructive')}
               onClick={onDeleteClick}
               title={t('deleteMessageTitle')}
             />
           </>
         )}
-        {!disablePin && (
-          <Protect permission={Permission.PIN_MESSAGES}>
-            <IconButton
-              size="sm"
-              variant="ghost"
-              icon={isPinned ? PinOff : Pin}
-              onClick={onPinClick}
-              title={isPinned ? t('unpinMessage') : t('pinMessage')}
-            />
-          </Protect>
-        )}
-
-        <Protect permission={Permission.REACT_TO_MESSAGES}>
-          <div className="flex items-center space-x-0.5 border-l pl-1 gap-1">
+        {canReact && (
+          <div className="flex items-center gap-1 border-l pl-1">
             {recentEmojisToShow.map((emoji) => (
               <button
                 key={emoji.name}
@@ -180,15 +158,7 @@ const MessageActions = memo(
                 className="w-6 h-6 flex items-center justify-center hover:bg-accent rounded-md transition-colors text-md"
                 title={`:${emoji.shortcodes[0]}:`}
               >
-                {emoji.emoji && !shouldUseFallbackImage(emoji) ? (
-                  <span>{emoji.emoji}</span>
-                ) : emoji.fallbackImage ? (
-                  <img
-                    src={emoji.fallbackImage}
-                    alt={emoji.name}
-                    className="w-5 h-5 object-contain"
-                  />
-                ) : null}
+                {emoji.emoji ? <span>{emoji.emoji}</span> : null}
               </button>
             ))}
 
@@ -196,11 +166,12 @@ const MessageActions = memo(
               <IconButton
                 variant="ghost"
                 icon={Smile}
+                className="h-6 w-6"
                 title={t('addReaction')}
               />
             </EmojiPicker>
           </div>
-        </Protect>
+        )}
       </div>
     );
   }

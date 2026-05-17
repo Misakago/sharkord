@@ -7,8 +7,8 @@ import {
   getTrpcError,
   PLUGIN_SDK_VERSION,
   type TMarketplaceEntry
-} from '@sharkord/shared';
-import { Badge, Button, Tooltip } from '@sharkord/ui';
+} from '@mikotord/shared';
+import { Badge, Button, Tooltip } from '@mikotord/ui';
 import { format } from 'date-fns';
 import { BadgeCheck, Calendar, Download, Package, User } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
@@ -147,7 +147,7 @@ const MarketplaceItem = memo(
             <ImageWithFallback
               src={plugin.logo}
               alt={`${plugin.name} logo`}
-              className="w-12 h-12 rounded-md object-cover"
+              className="w-12 h-12 rounded-lg object-cover"
               iconFallback={
                 <Package className="w-6 h-6 text-muted-foreground" />
               }
@@ -155,7 +155,7 @@ const MarketplaceItem = memo(
           ) : null}
           <div
             className={cn(
-              'w-12 h-12 rounded-md bg-muted flex items-center justify-center',
+              'w-12 h-12 rounded-lg bg-muted flex items-center justify-center',
               plugin.logo && 'hidden'
             )}
           >

@@ -10,7 +10,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Plus, Search } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -98,7 +98,7 @@ const SearchPopover = memo(
                     <button
                       key={role.id}
                       onClick={() => onSelect('role', role.id)}
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                      className="flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors hover:bg-accent"
                     >
                       <div
                         className="h-3 w-3 rounded-full"
@@ -122,7 +122,7 @@ const SearchPopover = memo(
                     <button
                       key={user.id}
                       onClick={() => onSelect('user', user.id)}
-                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                      className="flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors hover:bg-accent"
                     >
                       <UserAvatar userId={user.id} />
                       <span>{user.name}</span>

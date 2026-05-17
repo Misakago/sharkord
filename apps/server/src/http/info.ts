@@ -1,4 +1,4 @@
-import type { TServerInfo } from '@sharkord/shared';
+import type { TServerInfo } from '@mikotord/shared';
 import http from 'http';
 import { getSettings } from '../db/queries/server';
 import { SERVER_VERSION } from '../utils/env';

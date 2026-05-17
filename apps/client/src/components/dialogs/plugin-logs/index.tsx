@@ -9,7 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { AlertCircle, Bug, Info } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -55,7 +55,7 @@ const LogEntry = memo(({ log }: { log: TLogEntry }) => {
   }, [log.type, color]);
 
   return (
-    <div className="flex items-start gap-2 py-0.5 px-2 rounded hover:bg-muted/50 font-mono text-xs">
+    <div className="flex items-start gap-2 py-0.5 px-2 rounded hover:bg-accent font-mono text-xs">
       {Icon}
       <span className="text-muted-foreground flex-shrink-0 min-w-[70px]">
         {new Date(log.timestamp).toLocaleTimeString()}

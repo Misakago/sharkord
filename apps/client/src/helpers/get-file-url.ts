@@ -1,20 +1,23 @@
-import type { TFile } from '@sharkord/shared';
+import type { TFile } from '@mikotord/shared';
+
+const DEV_SERVER_PORT = '4991';
 
 const getHostFromServer = () => {
   if (import.meta.env.MODE === 'development') {
-    return 'localhost:4991';
+    const host = window.location.hostname || 'localhost';
+
+    return `${host}:${DEV_SERVER_PORT}`;
   }
 
   return window.location.host;
 };
 
 const getUrlFromServer = () => {
-  if (import.meta.env.MODE === 'development') {
-    return 'http://localhost:4991';
-  }
-
-  const host = window.location.host;
   const currentProtocol = window.location.protocol;
+  const host =
+    import.meta.env.MODE === 'development'
+      ? getHostFromServer()
+      : window.location.host;
 
   const finalUrl = `${currentProtocol}//${host}`;
 
@@ -25,18 +28,21 @@ const getFileUrl = (file: TFile | undefined | null) => {
   if (!file) return '';
 
   const url = getUrlFromServer();
+  const query = new URLSearchParams();
 
-  let baseUrl = `${url}/public/${file.name}`;
+  const baseUrl = `${url}/public/${encodeURIComponent(file.name)}`;
 
   if (file._accessToken) {
-    baseUrl += `?accessToken=${file._accessToken}`;
+    query.set('accessToken', file._accessToken);
 
     if (file._accessTokenExpiresAt) {
-      baseUrl += `&expires=${file._accessTokenExpiresAt}`;
+      query.set('expires', String(file._accessTokenExpiresAt));
     }
   }
 
-  return encodeURI(baseUrl);
+  const queryString = query.toString();
+
+  return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 };
 
 export { getFileUrl, getHostFromServer, getUrlFromServer };

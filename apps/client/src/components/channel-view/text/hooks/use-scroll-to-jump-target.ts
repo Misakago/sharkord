@@ -24,10 +24,12 @@ const useScrollToJumpTarget = (
 
     // use a long timeout here to ensure the message is still highlighted when we scroll to it, even if the user has a lot of messages in the channel and it takes a while to find it and scroll to it
     scrollToMessage(
-      messageJumpTarget.messageId,
+      messageJumpTarget.threadParentMessageId ?? messageJumpTarget.messageId,
       messageJumpTarget.highlightTime ?? DEFAULT_HIGHLIGHT_TIME
     ).finally(() => {
-      setMessageJumpTarget(undefined);
+      if (!messageJumpTarget.threadParentMessageId) {
+        setMessageJumpTarget(undefined);
+      }
       isJumpingToMessage.current = false;
     });
   }, [channelId, scrollToMessage, messageJumpTarget]);

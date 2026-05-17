@@ -1,7 +1,6 @@
 import { getInitialsFromName } from '@/helpers/get-initials-from-name';
 import { cn } from '@/lib/utils';
-import { AvatarImage } from '@radix-ui/react-avatar';
-import { Avatar, AvatarFallback } from '@sharkord/ui';
+import { Avatar, AvatarFallback, AvatarImage } from '@mikotord/ui';
 import { Bot } from 'lucide-react';
 import { memo } from 'react';
 
@@ -17,7 +16,7 @@ const PluginAvatar = memo(
       <div className="relative w-fit h-fit">
         <Avatar className={cn('h-8 w-8', className)}>
           {avatarUrl && <AvatarImage src={avatarUrl} />}
-          <AvatarFallback className="bg-primary/10 text-xs">
+          <AvatarFallback className="bg-primary/10">
             {name ? getInitialsFromName(name) : <Bot className="h-4 w-4" />}
           </AvatarFallback>
         </Avatar>

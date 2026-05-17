@@ -8,7 +8,7 @@ import {
   type TFile,
   type TJoinedSettings,
   type TTempFile
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { randomUUIDv7 } from 'bun';
 import { createHash } from 'crypto';
 import { eq } from 'drizzle-orm';
@@ -370,10 +370,31 @@ class FileManager {
     return fileName;
   };
 
+  private getRenamedOriginalName = (
+    tempFile: TTempFile,
+    originalName?: string
+  ): string => {
+    const trimmedName = originalName?.trim();
+
+    if (!trimmedName) {
+      return tempFile.originalName;
+    }
+
+    const safeName = path.basename(trimmedName).replace(/[\0\r\n]/g, '');
+    const baseName = path.basename(safeName, path.extname(safeName)).trim();
+
+    if (!baseName) {
+      return tempFile.originalName;
+    }
+
+    return `${baseName}${tempFile.extension}`;
+  };
+
   public async saveFile(
     tempFileId: string,
     userId: number,
-    type?: FileSaveType
+    type?: FileSaveType,
+    originalName?: string
   ): Promise<TFile> {
     const tempFile = this.getTemporaryFile(tempFileId);
 
@@ -412,6 +433,8 @@ class FileManager {
     this.validateFinalFileSize(tempFile, type, settings);
 
     await this.handleStorageLimits(tempFile, settings);
+
+    tempFile.originalName = this.getRenamedOriginalName(tempFile, originalName);
 
     const fileName = await this.getUniqueName(tempFile.originalName);
     const destinationPath = path.join(PUBLIC_PATH, fileName);

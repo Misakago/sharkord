@@ -1,5 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit';
-import { ChannelPermission, OWNER_ROLE_ID } from '@sharkord/shared';
+import { ChannelPermission, OWNER_ROLE_ID } from '@mikotord/shared';
 import { createCachedSelector } from 're-reselect';
 import type { IRootState } from '../store';
 import {
@@ -7,8 +7,7 @@ import {
   channelPermissionsSelector,
   channelReadStateByIdSelector,
   channelsByCategoryIdSelector,
-  channelsReadStatesSelector,
-  currentVoiceChannelIdSelector
+  channelsReadStatesSelector
 } from './channels/selectors';
 import { canViewChannel, hasUnreadMentionInMessages } from './helpers';
 import {
@@ -18,14 +17,12 @@ import {
   typingMapSelector
 } from './messages/selectors';
 import { rolesSelector } from './roles/selectors';
-import type { TVoiceUser } from './types';
 import {
   ownUserIdSelector,
   ownUserSelector,
   userByIdSelector,
   usersSelector
 } from './users/selectors';
-import { voiceChannelStateSelector } from './voice/selectors';
 
 export const connectedSelector = (state: IRootState) => state.server.connected;
 
@@ -132,15 +129,6 @@ export const typingUsersByChannelIdSelector = createCachedSelector(
   }
 )((_, channelId: number) => channelId);
 
-export const hasSharingScreenUsersSelector = createCachedSelector(
-  [voiceChannelStateSelector, (_: IRootState, channelId: number) => channelId],
-  (voiceState) => {
-    if (!voiceState) return false;
-
-    return Object.values(voiceState.users).some((u) => u.sharingScreen);
-  }
-)((_, channelId: number) => channelId);
-
 export const typingUsersByThreadIdSelector = createCachedSelector(
   [
     threadTypingMapSelector,
@@ -157,44 +145,6 @@ export const typingUsersByThreadIdSelector = createCachedSelector(
       .filter((u) => !!u);
   }
 )((_, parentMessageId: number) => `thread-${parentMessageId}`);
-
-export const voiceUsersByChannelIdSelector = createSelector(
-  [usersSelector, voiceChannelStateSelector],
-  (users, voiceState) => {
-    const voiceUsers: TVoiceUser[] = [];
-
-    if (!voiceState) return voiceUsers;
-
-    Object.entries(voiceState.users).forEach(([userIdStr, state]) => {
-      const userId = Number(userIdStr);
-      const user = users.find((u) => u.id === userId);
-
-      if (user) {
-        voiceUsers.push({
-          ...user,
-          state
-        });
-      }
-    });
-
-    return voiceUsers;
-  }
-);
-
-export const ownVoiceUserSelector = createSelector(
-  [
-    ownUserIdSelector,
-    (state: IRootState) => {
-      const channelId = currentVoiceChannelIdSelector(state);
-
-      if (channelId === undefined) return undefined;
-
-      return voiceUsersByChannelIdSelector(state, channelId);
-    }
-  ],
-  (ownUserId, voiceUsers) =>
-    voiceUsers?.find((voiceUser) => voiceUser.id === ownUserId)
-);
 
 // this approach has some limitations but it should work for most cases
 export const hasUnreadMentionsSelector = createCachedSelector(

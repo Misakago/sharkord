@@ -4,7 +4,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { Bug } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { toast } from 'sonner';

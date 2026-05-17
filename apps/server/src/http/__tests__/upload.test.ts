@@ -1,4 +1,4 @@
-import { UploadHeaders, type TTempFile } from '@sharkord/shared';
+import { UploadHeaders, type TTempFile } from '@mikotord/shared';
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'fs/promises';
 import path from 'path';
@@ -136,6 +136,32 @@ describe('/upload', () => {
     const data = (await response.json()) as TTempFile;
 
     expect(data.originalName).toBe('test file (1) [copy].txt');
+    expect(await fs.exists(data.path)).toBe(true);
+  });
+
+  test('should preserve encoded unicode filenames', async () => {
+    const unicodeContent = '中文文件内容';
+    const blob = new Blob([unicodeContent], { type: 'text/plain' });
+    const file = new File([blob], '中文.txt', { type: 'text/plain' });
+
+    const response = await fetch(`${testsBaseUrl}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        [UploadHeaders.TYPE]: file.type,
+        [UploadHeaders.CONTENT_LENGTH]: file.size.toString(),
+        [UploadHeaders.ORIGINAL_NAME]: encodeURIComponent(file.name),
+        [UploadHeaders.TOKEN]: token
+      },
+      body: file
+    });
+
+    expect(response.status).toBe(200);
+
+    const data = (await response.json()) as TTempFile;
+
+    expect(data.originalName).toBe('中文.txt');
+    expect(data.extension).toBe('.txt');
     expect(await fs.exists(data.path)).toBe(true);
   });
 
@@ -471,6 +497,13 @@ describe('sanitizeFileName', () => {
   test('should handle filenames with special characters', () => {
     expect(sanitizeFileName('test file (1).txt')).toBe('test file (1).txt');
     expect(sanitizeFileName('file[copy].txt')).toBe('file[copy].txt');
+  });
+
+  test('should decode encoded unicode filenames', () => {
+    expect(sanitizeFileName(encodeURIComponent('中文.txt'))).toBe('中文.txt');
+    expect(sanitizeFileName(encodeURIComponent('目录/中文.txt'))).toBe(
+      '中文.txt'
+    );
   });
 
   test('should handle filenames with multiple extensions', () => {

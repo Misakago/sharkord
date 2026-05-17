@@ -2,8 +2,8 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useRoleById } from '@/features/server/roles/hooks';
 import { useUserById } from '@/features/server/users/hooks';
 import { getTRPCClient } from '@/lib/trpc';
-import { ChannelPermission, getTrpcError } from '@sharkord/shared';
-import { Button, Card, CardContent, CardHeader, CardTitle } from '@sharkord/ui';
+import { ChannelPermission, getTrpcError } from '@mikotord/shared';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@mikotord/ui';
 import { Trash2 } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +40,7 @@ const RoleHeader = memo(({ roleId }: TRoleHeaderProps) => {
   return (
     <div className="flex items-center gap-3">
       <div
-        className="h-6 w-6 rounded-full"
+        className="h-6 w-6 rounded-md"
         style={{ backgroundColor: role.color }}
       />
       <CardTitle>{role.name}</CardTitle>

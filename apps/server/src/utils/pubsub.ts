@@ -1,20 +1,18 @@
 import type {
   ServerEvents,
-  StreamKind,
   TCategory,
   TChannel,
+  TClaudeCodeStatus,
   TChannelUserPermissionsMap,
   TCommandsMapByPlugin,
-  TExternalStream,
   TJoinedEmoji,
   TJoinedMessage,
   TJoinedPublicUser,
   TJoinedRole,
   TLogEntry,
   TPluginMetadata,
-  TPublicServerSettings,
-  TVoiceUserState
-} from '@sharkord/shared';
+  TPublicServerSettings
+} from '@mikotord/shared';
 import type { Unsubscribable } from '@trpc/server/observable';
 import { observable, type Observable } from '@trpc/server/observable';
 import { EventEmitter } from 'events';
@@ -60,46 +58,6 @@ type Events = {
     delta: number;
   };
 
-  [ServerEvents.USER_JOIN_VOICE]: {
-    channelId: number;
-    userId: number;
-    state: TVoiceUserState;
-  };
-  [ServerEvents.USER_LEAVE_VOICE]: {
-    channelId: number;
-    userId: number;
-  };
-  [ServerEvents.USER_VOICE_STATE_UPDATE]: {
-    channelId: number;
-    userId: number;
-    state: TVoiceUserState;
-  };
-
-  [ServerEvents.VOICE_NEW_PRODUCER]: {
-    channelId: number;
-    remoteId: number;
-    kind: StreamKind;
-  };
-  [ServerEvents.VOICE_ADD_EXTERNAL_STREAM]: {
-    channelId: number;
-    streamId: number;
-    stream: TExternalStream;
-  };
-  [ServerEvents.VOICE_UPDATE_EXTERNAL_STREAM]: {
-    channelId: number;
-    streamId: number;
-    stream: TExternalStream;
-  };
-  [ServerEvents.VOICE_REMOVE_EXTERNAL_STREAM]: {
-    channelId: number;
-    streamId: number;
-  };
-  [ServerEvents.VOICE_PRODUCER_CLOSED]: {
-    channelId: number;
-    remoteId: number;
-    kind: StreamKind;
-  };
-
   [ServerEvents.PLUGIN_LOG]: TLogEntry;
   [ServerEvents.PLUGIN_COMMANDS_CHANGE]: TCommandsMapByPlugin;
   [ServerEvents.PLUGIN_COMPONENTS_CHANGE]: string[]; // list of plugin ids that have components enabled
@@ -120,6 +78,7 @@ type Events = {
   [ServerEvents.CATEGORY_DELETE]: number;
 
   [ServerEvents.DM_CONVERSATION_OPEN]: { channelId: number };
+  [ServerEvents.CLAUDE_CODE_STATUS]: TClaudeCodeStatus;
 };
 
 class PubSub {

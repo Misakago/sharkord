@@ -3,7 +3,7 @@ import {
   OWNER_ROLE_ID,
   Permission,
   type TTempFile
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
 import { initTest, uploadFile } from '../../__tests__/helpers';
@@ -207,7 +207,6 @@ describe('users router', () => {
 
     await caller.users.update({
       name: 'Updated Name',
-      bannerColor: '#ff0000',
       bio: 'This is my new bio'
     });
 
@@ -216,7 +215,6 @@ describe('users router', () => {
 
     expect(updatedUser).toBeDefined();
     expect(updatedUser!.name).toBe('Updated Name');
-    expect(updatedUser!.bannerColor).toBe('#ff0000');
     expect(updatedUser!.bio).toBe('This is my new bio');
   });
 
@@ -224,8 +222,7 @@ describe('users router', () => {
     const { caller } = await initTest();
 
     await caller.users.update({
-      name: 'Test User',
-      bannerColor: '#00ff00'
+      name: 'Test User'
     });
 
     const users = await caller.users.getAll();
@@ -233,7 +230,6 @@ describe('users router', () => {
 
     expect(updatedUser).toBeDefined();
     expect(updatedUser!.name).toBe('Test User');
-    expect(updatedUser!.bannerColor).toBe('#00ff00');
   });
 
   test('should update password successfully', async () => {
@@ -1006,28 +1002,6 @@ describe('users router', () => {
     expect(updatedInfo.user.roleIds).toContain(3);
   });
 
-  test('should allow valid hex colors (3 and 6 digits)', async () => {
-    const { caller } = await initTest();
-
-    await caller.users.update({
-      name: 'Test',
-      bannerColor: '#abc123'
-    });
-
-    let info = await caller.users.getInfo({ userId: 1 });
-
-    expect(info.user.bannerColor).toBe('#abc123');
-
-    await caller.users.update({
-      name: 'Test',
-      bannerColor: '#f0f'
-    });
-
-    info = await caller.users.getInfo({ userId: 1 });
-
-    expect(info.user.bannerColor).toBe('#f0f');
-  });
-
   test('should handle bio with special characters', async () => {
     const { caller } = await initTest();
 
@@ -1035,7 +1009,6 @@ describe('users router', () => {
 
     await caller.users.update({
       name: 'Test User',
-      bannerColor: '#000000',
       bio: specialBio
     });
 
@@ -1049,26 +1022,22 @@ describe('users router', () => {
 
     await caller.users.update({
       name: 'Name 1',
-      bannerColor: '#111111',
       bio: 'Bio 1'
     });
 
     await caller.users.update({
       name: 'Name 2',
-      bannerColor: '#222222',
       bio: 'Bio 2'
     });
 
     await caller.users.update({
       name: 'Final Name',
-      bannerColor: '#333333',
       bio: 'Final Bio'
     });
 
     const info = await caller.users.getInfo({ userId: 1 });
 
     expect(info.user.name).toBe('Final Name');
-    expect(info.user.bannerColor).toBe('#333333');
     expect(info.user.bio).toBe('Final Bio');
   });
 

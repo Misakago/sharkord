@@ -5,7 +5,6 @@ import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import fs from 'fs/promises';
 import { DATA_PATH } from '../helpers/paths';
 import { createHttpServer } from '../http';
-import { loadMediasoup } from '../utils/mediasoup';
 import { clearRateLimitersForTests } from '../utils/rate-limiters/rate-limiter';
 import { DRIZZLE_PATH, setTestDb } from './mock-db';
 import { seedTestDb } from './seed';
@@ -51,7 +50,6 @@ let testsBaseUrl: string;
 
 beforeAll(async () => {
   await createHttpServer(9999);
-  await loadMediasoup();
 
   testsBaseUrl = 'http://localhost:9999';
 });

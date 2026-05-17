@@ -1,6 +1,5 @@
-import { useCustomEmojis } from '@/features/server/emojis/hooks';
 import { useFilteredUsers } from '@/features/server/users/hooks';
-import { TestId, type TCommandInfo } from '@sharkord/shared';
+import { TestId, type TCommandInfo } from '@mikotord/shared';
 import Emoji, { gitHubEmojis } from '@tiptap/extension-emoji';
 import Link from '@tiptap/extension-link';
 import { EditorContent, useEditor } from '@tiptap/react';
@@ -30,6 +29,7 @@ import type { TEmojiItem } from './helpers';
 
 type TTiptapInputHandle = {
   insertEmoji: (emoji: TEmojiItem) => void;
+  insertText: (text: string) => void;
   focus: () => void;
 };
 
@@ -71,17 +71,27 @@ const TiptapInput = memo(
     onCancelRef.current = onCancel;
     onArrowUpRef.current = onArrowUp;
 
-    const customEmojis = useCustomEmojis();
     const users = useFilteredUsers();
 
     const extensions = useMemo(() => {
       const exts = [
         StarterKit.configure({
+          blockquote: false,
+          bold: false,
+          bulletList: false,
+          code: false,
+          codeBlock: false,
           hardBreak: {
             HTMLAttributes: {
               class: 'hard-break'
             }
-          }
+          },
+          heading: false,
+          horizontalRule: false,
+          italic: false,
+          listItem: false,
+          orderedList: false,
+          strike: false
         }),
         Link.configure({
           autolink: true,
@@ -96,7 +106,7 @@ const TiptapInput = memo(
           }
         }),
         Emoji.configure({
-          emojis: [...gitHubEmojis, ...customEmojis],
+          emojis: gitHubEmojis,
           enableEmoticons: true,
           suggestion: EmojiSuggestion,
           HTMLAttributes: {
@@ -122,7 +132,7 @@ const TiptapInput = memo(
       }
 
       return exts;
-    }, [customEmojis, commands, users]);
+    }, [commands, users]);
 
     const editor = useEditor({
       extensions,
@@ -148,7 +158,9 @@ const TiptapInput = memo(
             return true;
           }
 
-          const suggestionElement = document.querySelector('.bg-popover');
+          const suggestionElement = document.querySelector(
+            '.bg-popover, [data-suggestion-popover]'
+          );
           const hasSuggestions =
             suggestionElement && document.body.contains(suggestionElement);
 
@@ -211,17 +223,18 @@ const TiptapInput = memo(
 
     useImperativeHandle(ref, () => ({
       insertEmoji: handleEmojiSelect,
+      insertText: (text: string) => {
+        if (disabled || readOnly) return;
+
+        editor?.chain().focus().insertContent(text).run();
+      },
       focus: () => editor?.commands.focus()
     }));
 
-    // keep emoji storage in sync with custom emojis from the store
-    // this ensures newly added emojis appear in autocomplete without refreshing the app
     useEffect(() => {
       if (editor) {
-        const allEmojis = [...gitHubEmojis, ...customEmojis];
-
         if (editor.storage.emoji) {
-          editor.storage.emoji.emojis = allEmojis;
+          editor.storage.emoji.emojis = gitHubEmojis;
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -229,14 +242,14 @@ const TiptapInput = memo(
           const typed = extension;
 
           if (typed.name === 'emoji' && typed.options) {
-            typed.options.emojis = allEmojis;
+            typed.options.emojis = gitHubEmojis;
           }
         };
 
         editor.extensionManager.extensions.forEach(applyEmojiOptions);
         editor.options.extensions?.forEach(applyEmojiOptions);
       }
-    }, [editor, customEmojis]);
+    }, [editor]);
 
     // keep commands storage in sync with plugin commands from the store
     useEffect(() => {

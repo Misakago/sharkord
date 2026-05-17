@@ -1,5 +1,5 @@
-import type { EventPayloads, ServerEvent } from '@sharkord/plugin-sdk';
-import { getErrorMessage } from '@sharkord/shared';
+import type { EventPayloads, ServerEvent } from '@mikotord/plugin-sdk';
+import { getErrorMessage } from '@mikotord/shared';
 import { logger } from '../logger';
 import { EVENT_HANDLER_TIMEOUT_MS, withTimeout } from './execution-timeout';
 

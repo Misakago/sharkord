@@ -1,11 +1,19 @@
 const messageHighlightTimeouts = new WeakMap<Element, NodeJS.Timeout>();
+const MESSAGE_HIGHLIGHT_CLASS = 'bg-white/35';
 
-export const getMessagesContainer = () =>
-  document.querySelector('[data-messages-container]');
+export const getMessagesContainer = (channelId?: number) =>
+  document.querySelector(
+    channelId
+      ? `[data-messages-container][data-channel-id="${channelId}"]`
+      : '[data-messages-container]'
+  );
 
-export const findMessageElement = (messageId: number) =>
-  getMessagesContainer()?.querySelector(`[data-message-id="${messageId}"]`) ??
-  null;
+export const findMessageElement = (messageId: number, channelId?: number) =>
+  channelId
+    ? (getMessagesContainer(channelId)?.querySelector(
+        `[data-message-id="${messageId}"]`
+      ) ?? null)
+    : document.querySelector(`[data-message-id="${messageId}"]`);
 
 export const nextFrame = () =>
   new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -19,14 +27,14 @@ export const highlightMessageElement = async (
   await nextFrame();
 
   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  element.classList.add('bg-secondary', 'animate-pulse');
+  element.classList.add(MESSAGE_HIGHLIGHT_CLASS);
 
   if (messageHighlightTimeouts.has(element)) {
     clearTimeout(messageHighlightTimeouts.get(element));
   }
 
   const timeoutId = setTimeout(() => {
-    element.classList.remove('bg-secondary', 'animate-pulse');
+    element.classList.remove(MESSAGE_HIGHLIGHT_CLASS);
 
     messageHighlightTimeouts.delete(element);
   }, highlightTime);
@@ -36,25 +44,19 @@ export const highlightMessageElement = async (
 
 export const waitForMessageElement = (
   messageId: number,
+  channelId?: number,
   timeoutMs = 3000
 ): Promise<Element | null> =>
   new Promise((resolve) => {
-    const existing = findMessageElement(messageId);
+    const existing = findMessageElement(messageId, channelId);
 
     if (existing) {
       resolve(existing);
       return;
     }
 
-    const container = getMessagesContainer();
-
-    if (!container) {
-      resolve(null);
-      return;
-    }
-
     const observer = new MutationObserver(() => {
-      const element = findMessageElement(messageId);
+      const element = findMessageElement(messageId, channelId);
 
       if (element) {
         observer.disconnect();
@@ -62,7 +64,7 @@ export const waitForMessageElement = (
       }
     });
 
-    observer.observe(container, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     setTimeout(() => {
       observer.disconnect();

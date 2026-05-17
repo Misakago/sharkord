@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import type { TCommandInfo } from '@sharkord/shared';
+import type { TCommandInfo } from '@mikotord/shared';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,7 +19,7 @@ const CommandsList = memo(
 
     return (
       <div className="w-80 border-r flex flex-col">
-        <div className="px-4 py-3 border-b bg-muted/30">
+        <div className="px-4 py-3 border-b bg-accent">
           <h3 className="font-semibold text-sm">{t('commandsLabel')}</h3>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -35,7 +35,7 @@ const CommandsList = memo(
                   onClick={() => handleCommandChange(cmd.name)}
                   className={cn(
                     'w-full text-left px-3 py-2 rounded-md text-sm transition-colors',
-                    'hover:bg-muted',
+                    'hover:bg-accent',
                     selectedCommand === cmd.name &&
                       'bg-primary text-primary-foreground hover:bg-primary/90'
                   )}

@@ -30,8 +30,7 @@ const removeEmojiElements = (html: string): string =>
     .replace(/<span[^>]*data-type="emoji"[^>]*>.*?<\/span>/gi, '')
     .replace(/<img[^>]*class="emoji-image"[^>]*\/?>/gi, '');
 
-const hasMediaTag = (html: string): boolean =>
-  /<(img|video|audio|iframe)\b/i.test(html);
+const hasMediaTag = (html: string): boolean => /<img\b/i.test(html);
 
 const hasEmojiElement = (html: string): boolean =>
   /<span[^>]*data-type="emoji"[^>]*>/.test(html) ||

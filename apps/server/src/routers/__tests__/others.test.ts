@@ -1,4 +1,4 @@
-import type { TTempFile } from '@sharkord/shared';
+import type { TTempFile } from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
 import {
   getCaller,
@@ -35,7 +35,6 @@ describe('others router', () => {
     expect(result).toHaveProperty('serverId');
     expect(result).toHaveProperty('serverName');
     expect(result).toHaveProperty('ownUserId');
-    expect(result).toHaveProperty('voiceMap');
     expect(result).toHaveProperty('roles');
     expect(result).toHaveProperty('emojis');
     expect(result).toHaveProperty('channelPermissions');

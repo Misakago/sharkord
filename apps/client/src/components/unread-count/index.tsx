@@ -1,4 +1,4 @@
-import { cn } from '@sharkord/ui';
+import { cn } from '@mikotord/ui';
 import { memo } from 'react';
 
 type TUnreadCountProps = {

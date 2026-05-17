@@ -1,5 +1,6 @@
 import {
   MessageCompose,
+  type TMessageComposeFile,
   type TMessageComposeHandle
 } from '@/components/message-compose';
 import { playSound } from '@/features/server/sounds/actions';
@@ -7,13 +8,13 @@ import { SoundType } from '@/features/server/types';
 import type { LocalStorageKey } from '@/helpers/storage';
 import { getTRPCClient } from '@/lib/trpc';
 import type { TReplyTarget } from '@/types';
-import type { TJoinedPublicUser } from '@sharkord/shared';
+import type { TJoinedPublicUser, TTempFile } from '@mikotord/shared';
 import {
   TYPING_MS,
   getTrpcError,
   prepareMessageHtml,
   type TJoinedMessage
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { throttle } from 'lodash-es';
 import { memo, useCallback, useMemo, useState, type Ref } from 'react';
 import { toast } from 'sonner';
@@ -23,6 +24,13 @@ type TThreadComposeProps = {
   channelId: number;
   typingUsers: TJoinedPublicUser[];
   replyingToMessage?: TJoinedMessage;
+  editingMessage?: TJoinedMessage;
+  onSaveEdit?: (
+    message: TJoinedMessage,
+    content: string,
+    files: TMessageComposeFile[]
+  ) => Promise<boolean>;
+  onCancelEdit?: () => void;
   onCancelReply?: () => void;
   onArrowUp?: () => void;
   ref?: Ref<TMessageComposeHandle>;
@@ -38,6 +46,9 @@ const ThreadCompose = memo(
     channelId,
     typingUsers,
     replyingToMessage,
+    editingMessage,
+    onSaveEdit,
+    onCancelEdit,
     onCancelReply,
     onArrowUp,
     ref,
@@ -78,7 +89,7 @@ const ThreadCompose = memo(
     );
 
     const onSend = useCallback(
-      async (message: string, files: { id: string }[]) => {
+      async (message: string, files: TTempFile[]) => {
         sendTypingSignal.cancel();
 
         const trpc = getTRPCClient();
@@ -87,7 +98,7 @@ const ThreadCompose = memo(
           await trpc.messages.send.mutate({
             content: prepareMessageHtml(message),
             channelId,
-            files: files.map((f) => f.id),
+            files: files.map((f) => ({ id: f.id, name: f.originalName })),
             parentMessageId,
             replyToMessageId: replyingToMessage?.id
           });
@@ -111,6 +122,30 @@ const ThreadCompose = memo(
       ]
     );
 
+    const handleSaveEdit = useCallback(
+      async (
+        message: TJoinedMessage,
+        content: string,
+        files: TMessageComposeFile[]
+      ) => {
+        if (!onSaveEdit) return false;
+
+        const success = await onSaveEdit(message, content, files);
+
+        if (success) {
+          setNewMessage('');
+        }
+
+        return success;
+      },
+      [onSaveEdit]
+    );
+
+    const handleCancelEdit = useCallback(() => {
+      setNewMessage('');
+      onCancelEdit?.();
+    }, [onCancelEdit]);
+
     return (
       <MessageCompose
         ref={ref}
@@ -118,6 +153,9 @@ const ThreadCompose = memo(
         message={newMessage}
         onMessageChange={setNewMessage}
         onSend={onSend}
+        editingMessage={editingMessage}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
         onTyping={sendTypingSignal}
         typingUsers={typingUsers}
         replyTarget={replyTarget}

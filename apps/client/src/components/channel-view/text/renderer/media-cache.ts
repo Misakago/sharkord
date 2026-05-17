@@ -1,15 +1,13 @@
 import { getFileUrl } from '@/helpers/get-file-url';
 import {
-  audioExtensions,
   imageExtensions,
-  videoExtensions,
   type TJoinedMessage,
   type TMessageMetadata
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { normalizeComparableUrl } from './helpers';
 import type { TFoundMedia } from './types';
 
-const ALLOWED_MEDIA_TYPES = ['image', 'video', 'audio'];
+const ALLOWED_MEDIA_TYPES = ['image'];
 const MAX_CACHE_SIZE = 500;
 
 const mediaCache = new Map<string, TFoundMedia[]>();
@@ -24,7 +22,7 @@ type TMessageMetadataLike = Partial<TMessageMetadata> & {
 const isMediaMetadata = (
   metadata: TMessageMetadataLike | null | undefined
 ): metadata is TMessageMetadataLike & {
-  mediaType: 'image' | 'video' | 'audio';
+  mediaType: 'image';
   url: string;
 } => {
   if (!metadata?.url) {
@@ -95,23 +93,8 @@ const extractMessageMedia = (message: TJoinedMessage): TFoundMedia[] => {
         return {
           key: getStableMediaKey(mediaKeyCounts, `file:${file.id}`),
           type: 'image',
-          url: getFileUrl(file)
-        };
-      }
-
-      if (videoExtensions.includes(extension)) {
-        return {
-          key: getStableMediaKey(mediaKeyCounts, `file:${file.id}`),
-          type: 'video',
-          url: getFileUrl(file)
-        };
-      }
-
-      if (audioExtensions.includes(extension)) {
-        return {
-          key: getStableMediaKey(mediaKeyCounts, `file:${file.id}`),
-          type: 'audio',
-          url: getFileUrl(file)
+          url: getFileUrl(file),
+          name: file.originalName
         };
       }
 
@@ -133,7 +116,8 @@ const extractMessageMedia = (message: TJoinedMessage): TFoundMedia[] => {
           `metadata:${metadataEntry.mediaType}:${metadataEntry.url}`
         ),
         type: metadataEntry.mediaType,
-        url: metadataEntry.url
+        url: metadataEntry.url,
+        name: metadataEntry.title
       };
     })
     .filter((media) => !!media) as TFoundMedia[];

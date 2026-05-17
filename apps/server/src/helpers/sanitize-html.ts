@@ -1,4 +1,4 @@
-import { stripZalgo } from '@sharkord/shared';
+import { stripZalgo } from '@mikotord/shared';
 import sanitize from 'sanitize-html';
 
 const sanitizeMessageHtml = (html: string): string => {

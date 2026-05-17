@@ -1,5 +1,4 @@
 import { TextChannel } from '@/components/channel-view/text';
-import { VoiceChannel } from '@/components/channel-view/voice';
 import { PluginSlotRenderer } from '@/components/plugin-slot-renderer';
 import {
   useSelectedChannelId,
@@ -7,25 +6,26 @@ import {
 } from '@/features/server/channels/hooks';
 import {
   useActiveFullscreenPluginId,
-  useServerName
 } from '@/features/server/hooks';
-import { ChannelType, PluginSlot } from '@sharkord/shared';
-import { Alert, AlertDescription } from '@sharkord/ui';
-import { AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ChannelType, PluginSlot } from '@mikotord/shared';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type TContentWrapperProps = {
   isDmMode: boolean;
   selectedDmChannelId?: number;
+  onToggleMembers?: () => void;
 };
 
 const ContentWrapper = memo(
-  ({ isDmMode, selectedDmChannelId }: TContentWrapperProps) => {
+  ({
+    isDmMode,
+    selectedDmChannelId,
+    onToggleMembers
+  }: TContentWrapperProps) => {
     const { t } = useTranslation();
     const selectedChannelId = useSelectedChannelId();
     const selectedChannelType = useSelectedChannelType();
-    const serverName = useServerName();
     const activeFullscreenPluginId = useActiveFullscreenPluginId();
 
     if (activeFullscreenPluginId) {
@@ -49,6 +49,7 @@ const ContentWrapper = memo(
           <TextChannel
             key={selectedDmChannelId}
             channelId={selectedDmChannelId}
+            onToggleMembers={onToggleMembers}
           />
         );
       } else {
@@ -69,45 +70,18 @@ const ContentWrapper = memo(
     if (selectedChannelId) {
       if (selectedChannelType === ChannelType.TEXT) {
         content = (
-          <TextChannel key={selectedChannelId} channelId={selectedChannelId} />
-        );
-      } else if (selectedChannelType === ChannelType.VOICE) {
-        content = (
-          <VoiceChannel key={selectedChannelId} channelId={selectedChannelId} />
+          <TextChannel
+            key={selectedChannelId}
+            channelId={selectedChannelId}
+            onToggleMembers={onToggleMembers}
+          />
         );
       }
     } else {
       content = (
-        <>
-          <div className="flex-col gap-2 h-full w-full hidden lg:flex overflow-auto">
-            <PluginSlotRenderer slotId={PluginSlot.HOME_SCREEN} />
-          </div>
-          <div className="flex flex-col items-center justify-center h-full gap-6 p-8 text-center md:hidden">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-2xl font-semibold text-foreground">
-                {t('welcomeToServer', { name: serverName })}
-              </h2>
-            </div>
-            <Alert variant="destructive" className="max-w-md">
-              <AlertTriangle />
-              <AlertDescription>{t('mobileNotOptimized')}</AlertDescription>
-            </Alert>
-            <div className="flex flex-col gap-3 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">
-                  <ArrowRight />
-                </span>
-                <span>{t('swipeRightForChannels')}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg">
-                  <ArrowLeft />
-                </span>
-                <span>{t('swipeLeftForUsers')}</span>
-              </div>
-            </div>
-          </div>
-        </>
+        <div className="flex-col gap-2 h-full w-full flex overflow-auto">
+          <PluginSlotRenderer slotId={PluginSlot.HOME_SCREEN} />
+        </div>
       );
     }
 

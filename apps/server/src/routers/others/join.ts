@@ -1,13 +1,13 @@
-import { ActivityLogType, ServerEvents, UserStatus } from '@sharkord/shared';
+import { ActivityLogType, ServerEvents, UserStatus } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { claudeCodeAgentManager } from '../../agents/claude-code';
 import { db } from '../../db';
 import {
   getAllChannelUserPermissions,
   getChannelsForUser,
   getChannelsReadStatesForUser
 } from '../../db/queries/channels';
-import { getEmojis } from '../../db/queries/emojis';
 import { hasUserJoinedBefore } from '../../db/queries/logins';
 import { getRoles } from '../../db/queries/roles';
 import { getPublicSettings, getSettings } from '../../db/queries/server';
@@ -19,7 +19,6 @@ import { pluginManager } from '../../plugins';
 import { eventBus } from '../../plugins/event-bus';
 import { enqueueActivityLog } from '../../queues/activity-log';
 import { enqueueLogin } from '../../queues/logins';
-import { VoiceRuntime } from '../../runtimes/voice';
 import { invariant } from '../../utils/invariant';
 import { rateLimitedProcedure, t } from '../../utils/trpc';
 
@@ -69,12 +68,13 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
     ctx.authenticated = true;
     ctx.setWsUserId(ctx.user.id);
 
+    await claudeCodeAgentManager.ensureAgentUser();
+
     const [
       allCategories,
       channelsForUser,
       publicUsers,
       roles,
-      emojis,
       channelPermissions,
       readStates,
       publicSettings,
@@ -85,7 +85,6 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
       getChannelsForUser(ctx.user.id), // filter channels based on permissions and DM participation
       getPublicUsers(true), // return identity to get status of already connected users
       getRoles(),
-      getEmojis(),
       getAllChannelUserPermissions(ctx.user.id),
       getChannelsReadStatesForUser(ctx.user.id),
       getPublicSettings(),
@@ -121,9 +120,6 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
       ctx.saveUserIp(ctx.user.id, connectionInfo.ip);
     }
 
-    const voiceMap = VoiceRuntime.getVoiceMap();
-    const externalStreamsMap = VoiceRuntime.getExternalStreamsMap();
-
     await db
       .update(users)
       .set({ lastLoginAt: Date.now() })
@@ -148,16 +144,14 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
       serverId: settings.serverId,
       serverName: settings.name,
       ownUserId: ctx.user.id,
-      voiceMap,
       roles,
-      emojis,
+      emojis: [],
       publicSettings,
       channelPermissions,
       readStates,
       commands: pluginManager.getCommands(),
       pluginIdsWithComponents: pluginManager.getPluginIdsWithComponents(),
       pluginsMetadata,
-      externalStreamsMap,
       showWelcomeDialog
     };
   });

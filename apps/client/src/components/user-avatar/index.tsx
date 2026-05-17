@@ -3,9 +3,8 @@ import { getFileUrl } from '@/helpers/get-file-url';
 import { getInitialsFromName } from '@/helpers/get-initials-from-name';
 import { getRenderedUsername } from '@/helpers/get-rendered-username';
 import { cn } from '@/lib/utils';
-import { AvatarImage } from '@radix-ui/react-avatar';
-import { UserStatus } from '@sharkord/shared';
-import { Avatar, AvatarFallback } from '@sharkord/ui';
+import { UserStatus } from '@mikotord/shared';
+import { Avatar, AvatarFallback, AvatarImage } from '@mikotord/ui';
 import { memo } from 'react';
 import { UserPopover } from '../user-popover';
 import { UserStatusBadge } from '../user-status';
@@ -32,9 +31,11 @@ const UserAvatar = memo(
 
     const content = (
       <div className="relative size-fit" onClick={onClick}>
-        <Avatar className={cn('size-8 bg-muted', className)}>
+        <Avatar
+          className={cn('size-8 bg-[#e5e5e5] dark:bg-[#333333]', className)}
+        >
           <AvatarImage src={getFileUrl(user.avatar)} key={user.avatarId} />
-          <AvatarFallback className="bg-muted text-xs">
+          <AvatarFallback>
             {getInitialsFromName(getRenderedUsername(user))}
           </AvatarFallback>
         </Avatar>

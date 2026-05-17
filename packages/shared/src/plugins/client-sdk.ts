@@ -17,7 +17,6 @@ export type TPluginStoreState = {
   plugins: TPluginMetadata[];
   ownUserId: number | undefined;
   selectedChannelId: number | undefined;
-  currentVoiceChannelId: number | undefined;
   publicSettings: TPublicServerSettings | undefined;
 };
 

@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sharkord/shared';
+import { getErrorMessage } from '@mikotord/shared';
 import fs from 'fs/promises';
 import { parse, stringify } from 'ini';
 import z from 'zod';
@@ -20,17 +20,8 @@ const zConfig = z.object({
     debug: z.coerce.boolean(),
     autoupdate: z.coerce.boolean()
   }),
-  webRtc: z.object({
-    port: z.coerce.number().int().positive(),
-    announcedAddress: z.string(),
-    maxBitrate: z.coerce.number().int().positive()
-  }),
   rateLimiters: z.object({
     sendAndEditMessage: z.object({
-      maxRequests: z.coerce.number().int().positive(),
-      windowMs: z.coerce.number().int().positive()
-    }),
-    joinVoiceChannel: z.object({
       maxRequests: z.coerce.number().int().positive(),
       windowMs: z.coerce.number().int().positive()
     }),
@@ -58,10 +49,6 @@ const zConfig = z.object({
       maxRequests: z.coerce.number().int().positive(),
       windowMs: z.coerce.number().int().positive()
     }),
-    addEmoji: z.object({
-      maxRequests: z.coerce.number().int().positive(),
-      windowMs: z.coerce.number().int().positive()
-    }),
     openDirectMessage: z.object({
       maxRequests: z.coerce.number().int().positive(),
       windowMs: z.coerce.number().int().positive()
@@ -81,18 +68,9 @@ const defaultConfig: TConfig = {
     debug: IS_DEVELOPMENT,
     autoupdate: false
   },
-  webRtc: {
-    port: 40000,
-    announcedAddress: '',
-    maxBitrate: 30_000_000 // 30 Mbps
-  },
   rateLimiters: {
     sendAndEditMessage: {
       maxRequests: 15,
-      windowMs: 60_000
-    },
-    joinVoiceChannel: {
-      maxRequests: 20,
       windowMs: 60_000
     },
     joinServer: {
@@ -118,10 +96,6 @@ const defaultConfig: TConfig = {
     toggleMessageReaction: {
       maxRequests: 60,
       windowMs: 10_000
-    },
-    addEmoji: {
-      maxRequests: 10,
-      windowMs: 60_000
     },
     openDirectMessage: {
       maxRequests: 10,
@@ -169,12 +143,9 @@ if (!configExists) {
 }
 
 config = applyEnvOverrides(config, {
-  'server.port': 'SHARKORD_PORT',
-  'server.debug': 'SHARKORD_DEBUG',
-  'server.autoupdate': 'SHARKORD_AUTOUPDATE',
-  'webRtc.port': 'SHARKORD_WEBRTC_PORT',
-  'webRtc.announcedAddress': 'SHARKORD_WEBRTC_ANNOUNCED_ADDRESS',
-  'webRtc.maxBitrate': 'SHARKORD_WEBRTC_MAX_BITRATE'
+  'server.port': 'MIKOTORD_PORT',
+  'server.debug': 'MIKOTORD_DEBUG',
+  'server.autoupdate': 'MIKOTORD_AUTOUPDATE'
 });
 
 config = Object.freeze(config);

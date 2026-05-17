@@ -1,49 +1,35 @@
 import { memo, useMemo } from 'react';
-import { AudioOverride } from '../overrides/audio';
 import { ImageOverride } from '../overrides/image';
 import { MediaOverride } from '../overrides/media';
-import { VideoOverride } from '../overrides/video';
 import type { TFoundMedia } from '../renderer/types';
 
 type TMediaProps = {
   media: TFoundMedia[];
+  compact?: boolean;
 };
 
-const Media = memo(({ media }: TMediaProps) => {
-  const { imagesAndVideos, audios } = useMemo(() => {
-    const imagesAndVideos = media.filter(
-      (item) => item.type === 'image' || item.type === 'video'
-    );
-    const audios = media.filter((item) => item.type === 'audio');
+const Media = memo(({ media, compact }: TMediaProps) => {
+  const images = useMemo(
+    () => media.filter((item) => item.type === 'image'),
+    [media]
+  );
 
-    return {
-      imagesAndVideos,
-      audios
-    };
-  }, [media]);
-
-  const singleVisualMedia =
-    imagesAndVideos.length === 1 ? imagesAndVideos[0] : null;
-  const hasOnlySingleVisualMedia =
-    singleVisualMedia !== null && audios.length === 0;
+  const singleImage = images.length === 1 ? images[0] : null;
 
   return (
     <>
-      {hasOnlySingleVisualMedia && singleVisualMedia.type === 'image' && (
-        <ImageOverride src={singleVisualMedia.url} />
+      {singleImage && (
+        <ImageOverride
+          src={singleImage.url}
+          alt={singleImage.name}
+          title={singleImage.name}
+          compact={compact}
+        />
       )}
 
-      {hasOnlySingleVisualMedia && singleVisualMedia.type === 'video' && (
-        <VideoOverride src={singleVisualMedia.url} />
+      {!singleImage && images.length > 0 && (
+        <MediaOverride media={images} compact={compact} />
       )}
-
-      {!hasOnlySingleVisualMedia && imagesAndVideos.length > 0 && (
-        <MediaOverride media={imagesAndVideos} />
-      )}
-
-      {audios.map((media) => (
-        <AudioOverride src={media.url} key={media.key} />
-      ))}
     </>
   );
 });

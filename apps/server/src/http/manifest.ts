@@ -1,14 +1,11 @@
-import type { TJoinedSettings, TWebAppManifest } from '@sharkord/shared';
+import type { TJoinedSettings, TWebAppManifest } from '@mikotord/shared';
 import http from 'http';
 import { imageSizeFromFile } from 'image-size/fromFile';
 import path from 'path';
 import { getSettings } from '../db/queries/server';
 import { PUBLIC_PATH } from '../helpers/paths';
 
-const DEFAULT_ICONS: TWebAppManifest['icons'] = [
-  { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-  { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
-];
+const DEFAULT_ICONS: TWebAppManifest['icons'] = [];
 
 const getImageSize = async (filePath: string) => {
   try {

@@ -1,14 +1,8 @@
-import { isTextPresentation } from '@/components/tiptap-input/helpers';
 import { useOwnUserId, useUsernames } from '@/features/server/users/hooks';
-import { getFileUrl } from '@/helpers/get-file-url';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
-import {
-  getTrpcError,
-  type TFile,
-  type TJoinedMessageReaction
-} from '@sharkord/shared';
-import { Button, Tooltip } from '@sharkord/ui';
+import { getTrpcError, type TJoinedMessageReaction } from '@mikotord/shared';
+import { Button, Tooltip } from '@mikotord/ui';
 import { gitHubEmojis } from '@tiptap/extension-emoji';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,65 +34,39 @@ const TooltipPreview = memo(
 
 type TEmojiProps = {
   emoji: string;
-  file: TFile | null;
-  className?: string;
   nativeEmojiClassName?: string;
 };
 
-const Emoji = memo(
-  ({ emoji, file, className, nativeEmojiClassName }: TEmojiProps) => {
-    const gitHubEmoji = useMemo(
-      () =>
-        gitHubEmojis.find(
-          (e) => e.name === emoji || e.shortcodes.includes(emoji)
-        ),
-      [emoji]
-    );
+const Emoji = memo(({ emoji, nativeEmojiClassName }: TEmojiProps) => {
+  const gitHubEmoji = useMemo(
+    () =>
+      gitHubEmojis.find(
+        (e) => e.name === emoji || e.shortcodes.includes(emoji)
+      ),
+    [emoji]
+  );
 
-    const onError = useCallback(
-      (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-        const target = e.target as HTMLImageElement;
-
-        target.outerHTML = `<span class="text-xs text-muted-foreground">:${emoji}:</span>`;
-      },
-      [emoji]
-    );
-
-    const imgSrc = useMemo(
-      () => gitHubEmoji?.fallbackImage ?? getFileUrl(file),
-      [gitHubEmoji, file]
-    );
-
-    if (gitHubEmoji?.emoji && !isTextPresentation(gitHubEmoji.emoji)) {
-      return (
-        <span className={cn('text-sm', nativeEmojiClassName)}>
-          {gitHubEmoji.emoji}
-        </span>
-      );
-    }
-
+  if (gitHubEmoji?.emoji) {
     return (
-      <img
-        src={imgSrc}
-        alt={`:${emoji}:`}
-        className={cn('w-5 h-5 object-contain', className)}
-        onError={onError}
-      />
+      <span className={cn('text-sm', nativeEmojiClassName)}>
+        {gitHubEmoji.emoji}
+      </span>
     );
   }
-);
+
+  return <span className="text-xs text-muted-foreground">:{emoji}:</span>;
+});
 
 type TReactionProps = {
   emoji: string;
   count: number;
   isUserReacted: boolean;
   onClick: () => void;
-  file: TFile | null;
   userIds: number[];
 };
 
 const Reaction = memo(
-  ({ emoji, count, isUserReacted, onClick, file, userIds }: TReactionProps) => {
+  ({ emoji, count, isUserReacted, onClick, userIds }: TReactionProps) => {
     const { t } = useTranslation('common');
     const usernames = useUsernames();
     const tooltipContent = useMemo(() => {
@@ -122,12 +90,7 @@ const Reaction = memo(
             emojiName={emoji}
             reacters={tooltipContent}
             emojiSlot={
-              <Emoji
-                emoji={emoji}
-                file={file}
-                className="w-10 h-10"
-                nativeEmojiClassName="text-[28px]"
-              />
+              <Emoji emoji={emoji} nativeEmojiClassName="text-[28px]" />
             }
           />
         }
@@ -141,7 +104,7 @@ const Reaction = memo(
             isUserReacted ? 'border-border' : 'border-none'
           )}
         >
-          <Emoji emoji={emoji} file={file} />
+          <Emoji emoji={emoji} />
           <span className="font-medium">{count}</span>
         </Button>
       </Tooltip>
@@ -160,7 +123,6 @@ type TAggregatedReaction = {
   userIds: number[];
   isUserReacted: boolean;
   createdAt: number;
-  file: TFile | null;
 };
 
 const MessageReactions = memo(
@@ -196,8 +158,7 @@ const MessageReactions = memo(
             count: 0,
             userIds: [],
             isUserReacted: false,
-            createdAt: reaction.createdAt,
-            file: reaction.file
+            createdAt: reaction.createdAt
           });
         }
 
@@ -229,7 +190,6 @@ const MessageReactions = memo(
             userIds={reaction.userIds}
             isUserReacted={reaction.isUserReacted}
             onClick={() => handleReactionClick(reaction.emoji)}
-            file={reaction.file}
           />
         ))}
       </div>

@@ -1,4 +1,4 @@
-import type { TDiskMetrics } from '@sharkord/shared';
+import type { TDiskMetrics } from '@mikotord/shared';
 import { filesize } from 'filesize';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ const DiskMetrics = memo(({ diskMetrics }: DiskMetricsProps) => {
   const { t } = useTranslation('settings');
 
   return (
-    <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border">
+    <div className="grid grid-cols-2 gap-4 p-4 bg-accent rounded-lg border">
       <div>
         <div className="text-sm font-medium text-muted-foreground">
           {t('diskTotalSpace')}
@@ -38,10 +38,10 @@ const DiskMetrics = memo(({ diskMetrics }: DiskMetricsProps) => {
       </div>
       <div>
         <div className="text-sm font-medium text-muted-foreground">
-          {t('diskSharkordUsed')}
+          {t('diskMikotordUsed')}
         </div>
         <div className="text-lg font-semibold">
-          {filesize(diskMetrics.sharkordUsedSpace, { standard: 'jedec' })}
+          {filesize(diskMetrics.mikotordUsedSpace, { standard: 'jedec' })}
         </div>
       </div>
       <div className="col-span-2 mt-2">

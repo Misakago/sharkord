@@ -10,7 +10,7 @@ import {
   DialogTitle,
   Group,
   Input
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TDialogBaseProps } from '../types';
@@ -21,7 +21,7 @@ const CreateCategoryDialog = memo(
   ({ isOpen, close }: TCreateCategoryDialogProps) => {
     const { t } = useTranslation('dialogs');
     const { values, r, setTrpcErrors } = useForm({
-      name: 'New Category'
+      name: ''
     });
     const [loading, setLoading] = useState(false);
 
@@ -32,7 +32,7 @@ const CreateCategoryDialog = memo(
 
       try {
         await trpc.categories.add.mutate({
-          name: values.name
+          name: values.name.trim()
         });
 
         close();
@@ -64,7 +64,10 @@ const CreateCategoryDialog = memo(
             <Button variant="ghost" onClick={close}>
               {t('cancel')}
             </Button>
-            <Button onClick={onSubmit} disabled={loading}>
+            <Button
+              onClick={onSubmit}
+              disabled={loading || !values.name.trim()}
+            >
               {t('createCategoryBtn')}
             </Button>
           </DialogFooter>

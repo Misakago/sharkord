@@ -1,9 +1,8 @@
 import { cn } from '@/lib/utils';
-import { IconButton } from '@sharkord/ui';
-import { Link, X } from 'lucide-react';
+import { IconButton } from '@mikotord/ui';
+import { X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
 
 const portalRoot = document.getElementById('imagePortal')!;
 
@@ -15,6 +14,7 @@ const FullScreenImage = memo(
   ({ as: Component = 'img', ...props }: TFullScreenImageProps) => {
     const [open, setOpen] = useState(false);
     const [visible, setVisible] = useState(false);
+    const closeTimerRef = useRef<number | null>(null);
 
     const imgRef = useRef<HTMLImageElement>(null);
     const scaleRef = useRef(0.8);
@@ -31,8 +31,14 @@ const FullScreenImage = memo(
     }, []);
 
     const onOpenClick = useCallback(() => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+
       scaleRef.current = 0.8;
       posRef.current = { x: 0, y: 0 };
+      draggingRef.current = false;
 
       setOpen(true);
 
@@ -41,12 +47,24 @@ const FullScreenImage = memo(
 
     const onCloseClick = useCallback(() => {
       setVisible(false);
+      draggingRef.current = false;
 
-      scaleRef.current = 1;
-      posRef.current = { x: 0, y: 0 };
-
-      setTimeout(() => setOpen(false), 300);
+      closeTimerRef.current = window.setTimeout(() => {
+        setOpen(false);
+        scaleRef.current = 0.8;
+        posRef.current = { x: 0, y: 0 };
+        closeTimerRef.current = null;
+      }, 300);
     }, []);
+
+    useEffect(
+      () => () => {
+        if (closeTimerRef.current) {
+          window.clearTimeout(closeTimerRef.current);
+        }
+      },
+      []
+    );
 
     const handleMouseDown = useCallback(
       (e: React.MouseEvent<HTMLImageElement>) => {
@@ -127,23 +145,6 @@ const FullScreenImage = memo(
       }
     }, [onCloseClick]);
 
-    const onCopyLink = useCallback(
-      async (e: React.MouseEvent) => {
-        e.stopPropagation();
-
-        if (!props.src) return;
-
-        try {
-          navigator.clipboard.writeText(props.src);
-
-          toast.success('Image link copied to clipboard');
-        } catch {
-          toast.error('Failed to copy image link');
-        }
-      },
-      [props.src]
-    );
-
     const portalContainer = open
       ? createPortal(
           <>
@@ -170,7 +171,6 @@ const FullScreenImage = memo(
                 }
               />
               <div className="flex gap-2 absolute top-2 right-2 z-50">
-                <IconButton icon={Link} variant="ghost" onClick={onCopyLink} />
                 <IconButton onClick={onCloseClick} icon={X} variant="ghost" />
               </div>
             </div>

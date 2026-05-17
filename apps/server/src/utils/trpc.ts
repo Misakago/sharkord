@@ -3,7 +3,7 @@ import {
   UserStatus,
   type Permission,
   type TUser
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { initTRPC, TRPCError } from '@trpc/server';
 import chalk from 'chalk';
 import type WebSocket from 'ws';
@@ -24,7 +24,6 @@ export type Context = {
   user: TUser;
   userId: number;
   token: string;
-  currentVoiceChannelId: number | undefined;
   hasPermission: (
     targetPermission: Permission | Permission[]
   ) => Promise<boolean>;

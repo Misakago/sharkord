@@ -5,7 +5,7 @@ import { useChannelById } from '@/features/server/channels/hooks';
 import { usePluginMetadata } from '@/features/server/plugins/hooks';
 import { useUserById } from '@/features/server/users/hooks';
 import { getRenderedUsername } from '@/helpers/get-rendered-username';
-import { type TJoinedMessage } from '@sharkord/shared';
+import { type TJoinedMessage } from '@mikotord/shared';
 import { CornerUpLeft } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -87,7 +87,7 @@ const MessageReplyPreviewWrapper = memo(
           </div>
           <button
             type="button"
-            className="ml-1 -mt-2 flex min-w-0 max-w-full items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+            className="ml-1 -mt-2 flex min-w-0 max-w-full items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             onClick={onReplyJumpClick}
           >
             {replyTarget?.pluginId ? (
@@ -103,7 +103,7 @@ const MessageReplyPreviewWrapper = memo(
                 showStatusBadge={false}
               />
             ) : (
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <CornerUpLeft className="h-3 w-3" />
               </span>
             )}

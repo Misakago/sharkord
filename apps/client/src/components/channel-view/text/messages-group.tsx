@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import {
   DELETED_USER_IDENTITY_AND_NAME,
   type TJoinedMessage
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { format } from 'date-fns';
 import { memo } from 'react';
 import { areGroupsEqual } from './helpers';
@@ -20,11 +20,11 @@ type TMessagesGroupProps = {
   disableActions?: boolean;
   disableFiles?: boolean;
   disableReactions?: boolean;
+  compactMedia?: boolean;
   onReplyMessageSelect?: (message: TJoinedMessage) => void;
+  onEditMessageSelect?: (message: TJoinedMessage) => void;
   replyTargetMessageId?: number;
   activeThreadMessageId?: number;
-  editingMessageId?: number;
-  onEditComplete?: () => void;
 };
 
 const MessagesGroup = memo(
@@ -33,11 +33,11 @@ const MessagesGroup = memo(
     disableActions,
     disableFiles,
     disableReactions,
+    compactMedia,
     onReplyMessageSelect,
+    onEditMessageSelect,
     replyTargetMessageId,
-    activeThreadMessageId,
-    editingMessageId,
-    onEditComplete
+    activeThreadMessageId
   }: TMessagesGroupProps) => {
     const firstMessage = group[0];
     const pluginMetadata = usePluginMetadata(firstMessage.pluginId);
@@ -51,66 +51,102 @@ const MessagesGroup = memo(
     const isReplyToMessage =
       group.length === 1 && !!firstMessage.replyToMessageId;
 
-    const groupContent = (
-      <div className="flex min-w-0 max-w-dvw gap-1 pl-2 pt-2 pr-2">
-        {isPluginMessage ? (
-          <PluginAvatar
-            name={pluginMetadata?.name}
-            avatarUrl={pluginMetadata?.avatarUrl}
-            className="h-10 w-10"
-          />
-        ) : (
-          <UserAvatar userId={user!.id} className="h-10 w-10" showUserPopover />
-        )}
-        <div className="flex min-w-0 flex-col w-full">
-          <div className="flex gap-2 items-baseline pl-1 select-none">
+    const renderMessage = (message: TJoinedMessage) => (
+      <div
+        key={message.id}
+        id={`message-${message.id}`}
+        className="flex w-full max-w-full rounded-md"
+      >
+        <Message
+          message={message}
+          disableActions={disableActions}
+          disableFiles={disableFiles}
+          disableReactions={disableReactions}
+          compactMedia={compactMedia}
+          onReplyMessageSelect={onReplyMessageSelect}
+          onEditMessageSelect={onEditMessageSelect}
+          isInlineReplyTarget={message.id === replyTargetMessageId}
+          isActiveThread={message.id === activeThreadMessageId}
+        />
+      </div>
+    );
+
+    const renderFollowUpMessage = (message: TJoinedMessage) => {
+      const messageDate = new Date(message.createdAt);
+
+      return (
+        <div
+          key={message.id}
+          className="group/followup flex min-w-0 items-start gap-3"
+        >
+          <div className="flex h-7 w-12 shrink-0 items-start justify-end pr-1 pt-1 select-none">
             <span
-              className={cn(
-                isOwnUser && 'font-bold',
-                isDeletedUser && 'line-through text-muted-foreground',
-                isPluginMessage && 'text-primary/80'
-              )}
+              className="text-primary/50 text-xs leading-5 opacity-0 transition-opacity group-hover/followup:opacity-100"
+              title={format(messageDate, 'PPpp')}
             >
-              {authorName}
+              {format(messageDate, 'HH:mm')}
             </span>
-            {isPluginMessage && (
-              <span className="inline-flex items-center rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/60 uppercase tracking-wide">
-                bot
+          </div>
+          <div className="min-w-0 flex-1">{renderMessage(message)}</div>
+        </div>
+      );
+    };
+
+    const groupContent = (
+      <div className="flex min-w-0 max-w-dvw flex-col gap-1.5 pl-2 pt-2 pr-2">
+        <div className="flex min-w-0 items-start gap-3">
+          {isPluginMessage ? (
+            <PluginAvatar
+              name={pluginMetadata?.name}
+              avatarUrl={pluginMetadata?.avatarUrl}
+              className="h-12 w-12"
+            />
+          ) : (
+            <UserAvatar
+              userId={user!.id}
+              className="h-12 w-12"
+              showUserPopover
+            />
+          )}
+          <div className="flex min-w-0 w-full flex-col pt-0">
+            <div className="flex min-h-6 items-start gap-2 pl-1 leading-none select-none">
+              <span
+                className={cn(
+                  'leading-none',
+                  isOwnUser && 'font-bold',
+                  isDeletedUser && 'line-through text-muted-foreground',
+                  isPluginMessage && 'text-primary/80'
+                )}
+              >
+                {authorName}
               </span>
-            )}
-            <RelativeTime date={date}>
-              {(relativeTime) => (
-                <span
-                  className="text-primary/60 text-xs"
-                  title={format(date, 'PPpp')}
-                >
-                  {relativeTime}
+              {isPluginMessage && (
+                <span className="inline-flex items-center rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/60 uppercase tracking-wide">
+                  bot
                 </span>
               )}
-            </RelativeTime>
-          </div>
-          <div className="flex min-w-0 flex-col">
-            {group.map((message) => (
-              <div
-                key={message.id}
-                id={`message-${message.id}`}
-                className="rounded-md transition-colors duration-1000"
-              >
-                <Message
-                  message={message}
-                  disableActions={disableActions}
-                  disableFiles={disableFiles}
-                  disableReactions={disableReactions}
-                  onReplyMessageSelect={onReplyMessageSelect}
-                  isInlineReplyTarget={message.id === replyTargetMessageId}
-                  isActiveThread={message.id === activeThreadMessageId}
-                  editingMessageId={editingMessageId}
-                  onEditComplete={onEditComplete}
-                />
-              </div>
-            ))}
+              <RelativeTime date={date}>
+                {(relativeTime) => (
+                  <span
+                    className="pt-0.5 text-primary/60 text-xs leading-none"
+                    title={format(date, 'PPpp')}
+                  >
+                    {relativeTime}
+                  </span>
+                )}
+              </RelativeTime>
+            </div>
+            <div className="flex min-w-0 flex-col items-start">
+              {renderMessage(firstMessage)}
+            </div>
           </div>
         </div>
+
+        {group.length > 1 && (
+          <div className="flex flex-col gap-1.5">
+            {group.slice(1).map((message) => renderFollowUpMessage(message))}
+          </div>
+        )}
       </div>
     );
 

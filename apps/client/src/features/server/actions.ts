@@ -1,9 +1,9 @@
 import { Dialog } from '@/components/dialogs/dialogs';
 import { logDebug } from '@/helpers/browser-logger';
 import { getHostFromServer } from '@/helpers/get-file-url';
-import { cleanup, connectToTRPC, getTRPCClient } from '@/lib/trpc';
+import { connectToTRPC, disconnectTRPC, getTRPCClient } from '@/lib/trpc';
 import type { TMessageJumpToTarget } from '@/types';
-import { type TPublicServerSettings, type TServerInfo } from '@sharkord/shared';
+import { type TPublicServerSettings, type TServerInfo } from '@mikotord/shared';
 import { toast } from 'sonner';
 import { appSliceActions } from '../app/slice';
 import { openDialog } from '../dialogs/actions';
@@ -100,6 +100,7 @@ export const joinServer = async (handshakeHash: string, password?: string) => {
   unsubscribeFromServer = initSubscriptions();
 
   store.dispatch(serverSliceActions.setInitialData(data));
+  store.dispatch(serverSliceActions.setDisconnectInfo(undefined));
 
   setPluginCommands(data.commands);
 
@@ -115,7 +116,7 @@ export const joinServer = async (handshakeHash: string, password?: string) => {
 };
 
 export const disconnectFromServer = () => {
-  cleanup();
+  disconnectTRPC();
   unsubscribeFromServer?.();
 };
 
@@ -125,13 +126,31 @@ export const jumpToMessage = (target: TMessageJumpToTarget) => {
   if (target.isDm) {
     setDmsOpen(true);
     store.dispatch(appSliceActions.setSelectedDmChannelId(target.channelId));
+    if (target.threadParentMessageId) {
+      store.dispatch(
+        appSliceActions.setThreadSidebarOpen({
+          open: true,
+          parentMessageId: target.threadParentMessageId,
+          channelId: target.channelId
+        })
+      );
+    }
 
     return;
   }
 
   setDmsOpen(false);
-  store.dispatch(appSliceActions.setSelectedDmChannelId(undefined));
   store.dispatch(serverSliceActions.setSelectedChannelId(target.channelId));
+
+  if (target.threadParentMessageId) {
+    store.dispatch(
+      appSliceActions.setThreadSidebarOpen({
+        open: true,
+        parentMessageId: target.threadParentMessageId,
+        channelId: target.channelId
+      })
+    );
+  }
 
   const state = store.getState();
 

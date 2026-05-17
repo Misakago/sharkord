@@ -1,10 +1,9 @@
 import { getTRPCClient } from '@/lib/trpc';
-import { cn } from '@/lib/utils';
 import {
   ChannelType,
   parseTrpcErrors,
   type TTrpcErrors
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import {
   AutoFocus,
   Button,
@@ -15,56 +14,19 @@ import {
   DialogTitle,
   Group,
   Input
-} from '@sharkord/ui';
-import { Hash, Mic } from 'lucide-react';
+} from '@mikotord/ui';
+import { Hash } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TDialogBaseProps } from '../types';
 
-type TChannelTypeItemProps = {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  isActive: boolean;
-  onClick: () => void;
-};
-
-const ChannelTypeItem = ({
-  icon,
-  title,
-  description,
-  isActive,
-  onClick
-}: TChannelTypeItemProps) => (
-  <div
-    className={cn(
-      'flex items-center gap-2 p-2 rounded-md cursor-pointer',
-      isActive && 'ring-2 ring-primary bg-primary/10'
-    )}
-    onClick={onClick}
-  >
-    {icon}
-    <div className="flex flex-col">
-      <span>{title}</span>
-      <span className="text-sm text-primary/60">{description}</span>
-    </div>
-  </div>
-);
-
 type TCreateChannelDialogProps = TDialogBaseProps & {
   categoryId: number;
-  defaultChannelType?: ChannelType;
 };
 
 const CreateChannelDialog = memo(
-  ({
-    isOpen,
-    categoryId,
-    close,
-    defaultChannelType = ChannelType.TEXT
-  }: TCreateChannelDialogProps) => {
+  ({ isOpen, categoryId, close }: TCreateChannelDialogProps) => {
     const { t } = useTranslation('dialogs');
-    const [channelType, setChannelType] = useState(defaultChannelType);
     const [name, setName] = useState('New Channel');
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<TTrpcErrors>({});
@@ -76,7 +38,7 @@ const CreateChannelDialog = memo(
 
       try {
         await trpc.channels.add.mutate({
-          type: channelType,
+          type: ChannelType.TEXT,
           name,
           categoryId
         });
@@ -87,7 +49,7 @@ const CreateChannelDialog = memo(
       } finally {
         setLoading(false);
       }
-    }, [name, categoryId, close, channelType]);
+    }, [name, categoryId, close]);
 
     return (
       <Dialog open={isOpen}>
@@ -97,21 +59,15 @@ const CreateChannelDialog = memo(
           </DialogHeader>
 
           <Group label={t('channelTypeLabel')}>
-            <ChannelTypeItem
-              title={t('textChannelTitle')}
-              description={t('textChannelDesc')}
-              icon={<Hash className="h-6 w-6" />}
-              isActive={channelType === ChannelType.TEXT}
-              onClick={() => setChannelType(ChannelType.TEXT)}
-            />
-
-            <ChannelTypeItem
-              title={t('voiceChannelTitle')}
-              description={t('voiceChannelDesc')}
-              icon={<Mic className="h-6 w-6" />}
-              isActive={channelType === ChannelType.VOICE}
-              onClick={() => setChannelType(ChannelType.VOICE)}
-            />
+            <div className="flex items-center gap-2 rounded-md bg-primary/10 p-2 ring-2 ring-primary">
+              <Hash className="h-6 w-6" />
+              <div className="flex flex-col">
+                <span>{t('textChannelTitle')}</span>
+                <span className="text-sm text-primary/60">
+                  {t('textChannelDesc')}
+                </span>
+              </div>
+            </div>
           </Group>
 
           <Group label={t('channelNameLabel')}>
@@ -132,10 +88,7 @@ const CreateChannelDialog = memo(
             <Button variant="ghost" onClick={close}>
               {t('cancel')}
             </Button>
-            <Button
-              onClick={onSubmit}
-              disabled={loading || !name || !channelType}
-            >
+            <Button onClick={onSubmit} disabled={loading || !name}>
               {t('createChannelBtn')}
             </Button>
           </DialogFooter>

@@ -18,7 +18,7 @@ import {
   CardTitle,
   Group,
   Switch
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 

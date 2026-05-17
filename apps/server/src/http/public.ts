@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@sharkord/shared';
+import { getErrorMessage } from '@mikotord/shared';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import http from 'http';
@@ -22,9 +22,7 @@ const INLINE_ALLOW_LIST = [
   'image/jpeg',
   'image/gif',
   'image/webp',
-  'image/avif',
-  'video/mp4',
-  'audio/mpeg'
+  'image/avif'
 ];
 
 const pipeFileStream = (
@@ -150,7 +148,8 @@ const publicRouteHandler = async (
 
   const safeFileName = dbFile.originalName
     .replace(/[\r\n]/g, '') // strip CR/LF to prevent header injection
-    .replace(/"/g, '\\"'); // escape double quotes for header safety
+    .replace(/"/g, '\\"') // escape double quotes for header safety
+    .replace(/[^\x20-\x7E]/g, '_'); // plain filename must stay header-safe ASCII; UTF-8 name is provided by filename*
 
   const encodedFileName = encodeURIComponent(dbFile.originalName).replace(
     /'/g,

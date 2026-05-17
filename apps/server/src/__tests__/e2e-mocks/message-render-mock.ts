@@ -1,10 +1,8 @@
-import { ChannelType, type TIMessage } from '@sharkord/shared';
+import { ChannelType, type TIMessage } from '@mikotord/shared';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { channels, messages } from '../../db/schema';
 
 const bigImageUrl = 'https://i.imgur.com/ZaGQvmT.jpeg';
-const videoUrl =
-  'https://avtshare01.rz.tu-ilmenau.de/avt-vqdb-uhd-1/test_1/segments/bigbuck_bunny_8bit_15000kbps_1080p_60.0fps_h264.mp4';
 
 const getRandomImagesList = async (count: number): Promise<string[]> => {
   try {
@@ -80,35 +78,6 @@ const createMockMessageArrayWithImages = async (
   return messagesArray;
 };
 
-const createMockMessageArrayWithVideo = (
-  channelId: number,
-  totalMessages: number
-): TIMessage[] => {
-  const messagesArray: TIMessage[] = [];
-
-  const baseCreatedAt = Date.now() - totalMessages * 60 * 1000;
-
-  for (let i = 0; i < totalMessages; i++) {
-    messagesArray.push({
-      channelId,
-      userId: 1,
-      content: `<p><a target="_blank" rel="noopener noreferrer" href="${videoUrl}">${videoUrl}</a></p>`,
-      createdAt: baseCreatedAt + i * 60 * 1000,
-      metadata: [
-        {
-          kind: 'media',
-          url: videoUrl,
-          title: 'bigbuck_bunny_8bit_15000kbps_1080p_60.0fps_h264.mp4',
-          description: '',
-          mediaType: 'video'
-        }
-      ]
-    });
-  }
-
-  return messagesArray;
-};
-
 const messageRenderMock = async (
   db: BunSQLiteDatabase,
   e2eChannelsCategoryId: number
@@ -126,8 +95,7 @@ const messageRenderMock = async (
     .get();
 
   const allMockMessages = interleaveArrays([
-    await createMockMessageArrayWithImages(scrollChannel!.id, 500),
-    createMockMessageArrayWithVideo(scrollChannel!.id, 500)
+    await createMockMessageArrayWithImages(scrollChannel!.id, 500)
   ]);
 
   const totalMockMessages = allMockMessages.length;

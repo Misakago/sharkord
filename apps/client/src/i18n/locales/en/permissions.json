@@ -7,7 +7,6 @@
   "server": {
     "SEND_MESSAGES": "Send messages",
     "REACT_TO_MESSAGES": "React to messages",
-    "PIN_MESSAGES": "Pin messages",
     "UPLOAD_FILES": "Upload files",
     "JOIN_VOICE_CHANNELS": "Join voice channels",
     "SHARE_SCREEN": "Share screen",
@@ -30,7 +29,6 @@
   "serverDescriptions": {
     "SEND_MESSAGES": "Grants the ability to send messages in channels.",
     "REACT_TO_MESSAGES": "Grants the ability to react to messages.",
-    "PIN_MESSAGES": "Grants the ability to pin messages.",
     "UPLOAD_FILES": "Grants the ability to upload files in channels.",
     "JOIN_VOICE_CHANNELS": "Grants the ability to join voice channels.",
     "SHARE_SCREEN": "Grants the ability to share the screen.",

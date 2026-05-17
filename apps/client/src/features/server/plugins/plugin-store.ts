@@ -4,8 +4,8 @@ import type {
   TPluginActions,
   TPluginStore,
   TPluginStoreState
-} from '@sharkord/shared';
-import { prepareMessageHtml } from '@sharkord/shared';
+} from '@mikotord/shared';
+import { prepareMessageHtml } from '@mikotord/shared';
 import { setSelectedChannelId } from '../channels/actions';
 
 // I honestly can't tell if this is a genius or disgusting, I'm in shock
@@ -31,7 +31,6 @@ const mapStateToPluginState = (state: IRootState): TPluginStoreState => ({
   plugins: state.server.pluginsMetadata,
   ownUserId: state.server.ownUserId,
   selectedChannelId: state.server.selectedChannelId,
-  currentVoiceChannelId: state.server.currentVoiceChannelId,
   publicSettings: state.server.publicSettings
 });
 
@@ -70,7 +69,7 @@ const pluginStore: TPluginStore = {
 };
 
 const exposePluginStore = () => {
-  window.__SHARKORD_STORE__ = pluginStore;
+  window.__MIKOTORD_STORE__ = pluginStore;
 };
 
 export { exposePluginStore, pluginActions, pluginStore };

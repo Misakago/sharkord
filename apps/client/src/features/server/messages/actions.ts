@@ -12,7 +12,7 @@ import {
   hasMention,
   TYPING_MS,
   type TJoinedMessage
-} from '@sharkord/shared';
+} from '@mikotord/shared';
 import { markChannelAsRead } from '../actions';
 import {
   channelByIdSelector,

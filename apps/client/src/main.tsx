@@ -1,12 +1,11 @@
 import { i18nReady } from '@/i18n';
-import { Toaster } from '@sharkord/ui';
+import { Toaster } from '@mikotord/ui';
 import 'prosemirror-view/style/prosemirror.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { DebugInfo } from './components/debug-info/index.tsx';
 import { StoreDebug } from './components/debug/store-debug.tsx';
-import { DevicesProvider } from './components/devices-provider/index.tsx';
 import { DialogsProvider } from './components/dialogs/index.tsx';
 import { HotkeysController } from './components/hotkeys-controller/index.tsx';
 import { PluginsController } from './components/plugins-controller/index.tsx';
@@ -37,13 +36,11 @@ createRoot(document.getElementById('root')!).render(
       <Provider store={store}>
         <StoreDebug />
         <HotkeysController />
-        <DevicesProvider>
-          <PluginsController />
-          <DialogsProvider />
-          <ServerScreensProvider />
-          <AutoLoginController />
-          <Routing />
-        </DevicesProvider>
+        <PluginsController />
+        <DialogsProvider />
+        <ServerScreensProvider />
+        <AutoLoginController />
+        <Routing />
       </Provider>
     </ThemeProvider>
   </StrictMode>

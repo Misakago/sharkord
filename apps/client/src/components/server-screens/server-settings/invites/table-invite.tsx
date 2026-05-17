@@ -5,8 +5,8 @@ import { getUrlFromServer } from '@/helpers/get-file-url';
 import { useDateLocale } from '@/hooks/use-date-locale';
 import { getTRPCClient } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
-import type { TJoinedInvite } from '@sharkord/shared';
-import { getTrpcError } from '@sharkord/shared';
+import type { TJoinedInvite } from '@mikotord/shared';
+import { getTrpcError } from '@mikotord/shared';
 import {
   Badge,
   Button,
@@ -14,7 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@sharkord/ui';
+} from '@mikotord/ui';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Copy, MoreVertical, Trash2 } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
@@ -103,7 +103,7 @@ const TableInvite = memo(({ invite, refetch }: TTableInviteProps) => {
   return (
     <div
       key={invite.id}
-      className="grid grid-cols-[1fr_80px_50px_70px_90px_110px_70px_60px] gap-4 px-4 py-3 text-sm hover:bg-muted/30 transition-colors"
+      className="grid grid-cols-[1fr_80px_50px_70px_90px_110px_70px_60px] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent"
     >
       <div className="flex items-center min-w-0">
         <div className="flex items-center gap-2 min-w-0">
