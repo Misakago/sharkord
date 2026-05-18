@@ -96,7 +96,10 @@ const joinServerRoute = rateLimitedProcedure(t.procedure, {
 
     const processedPublicUsers = publicUsers.map((u) => ({
       ...u,
-      status: ctx.getStatusById(u.id),
+      status:
+        u._identity === claudeCodeAgentManager.getAgentIdentity()
+          ? UserStatus.ONLINE
+          : ctx.getStatusById(u.id),
       _identity: undefined // remove identity before sending to client
     }));
 

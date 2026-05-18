@@ -10,7 +10,12 @@ import {
   useClaudeCodePanelOpen,
   useSelectedDmChannelId
 } from '@/features/app/hooks';
+import {
+  useChannelById,
+  useSelectedChannelId
+} from '@/features/server/channels/hooks';
 import { useDmsOpen } from '@/features/server/hooks';
+import { useMessagesByChannelId } from '@/features/server/messages/hooks';
 import { getHostFromServer } from '@/helpers/get-file-url';
 import { getSessionStorageItem, SessionStorageKey } from '@/helpers/storage';
 import { getTRPCClient } from '@/lib/trpc';
@@ -20,7 +25,7 @@ import { IconButton } from '@mikotord/ui';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { History, Trash2, X } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
@@ -37,12 +42,17 @@ type TClaudeCodeHistoryItem = {
   available: boolean;
 };
 
-const getWsUrl = () => {
+const getWsUrl = (channelId?: number) => {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const host = getHostFromServer();
   const token = getSessionStorageItem(SessionStorageKey.TOKEN) ?? '';
+  const params = new URLSearchParams({ token });
 
-  return `${protocol}://${host}/claude-code/pty?token=${encodeURIComponent(token)}`;
+  if (channelId) {
+    params.set('channelId', String(channelId));
+  }
+
+  return `${protocol}://${host}/claude-code/pty?${params.toString()}`;
 };
 
 const MASCOT_SIZE = 78;
@@ -55,6 +65,8 @@ const ClaudeCodeFloatingPanel = memo(() => {
   const open = useClaudeCodePanelOpen();
   const historyOpen = useClaudeCodeHistoryOpen();
   const selectedDmChannelId = useSelectedDmChannelId();
+  const selectedChannelId = useSelectedChannelId();
+  const selectedChannel = useChannelById(selectedChannelId ?? -1);
   const dmsOpen = useDmsOpen();
   const [claudeCodeDmChannelId, setClaudeCodeDmChannelId] = useState<
     number | undefined
@@ -78,10 +90,42 @@ const ClaudeCodeFloatingPanel = memo(() => {
   const previousStatusStateRef = useRef<TClaudeCodeStatus['state']>('idle');
   const happyTimeoutRef = useRef<number | undefined>(undefined);
   const [showHappyMascot, setShowHappyMascot] = useState(false);
-  const isClaudeCodeConversation =
+  const isClaudeCodeDmConversation =
     dmsOpen &&
     selectedDmChannelId !== undefined &&
     selectedDmChannelId === claudeCodeDmChannelId;
+  const activeGroupChannelId =
+    !dmsOpen && selectedChannelId !== undefined && selectedChannel?.isDm === false
+      ? selectedChannelId
+      : undefined;
+  const groupMessages = useMessagesByChannelId(activeGroupChannelId ?? -1);
+  const activeGroupClaudeCodeState = useMemo<TClaudeCodeStatus['state'] | undefined>(
+    () => {
+      if (!activeGroupChannelId) return undefined;
+
+      const task = [...groupMessages]
+        .reverse()
+        .flatMap((message) => message.metadata ?? [])
+        .find(
+          (metadata) =>
+            metadata?.kind === 'claude_code_task' &&
+            (metadata.status === 'running' ||
+              metadata.status === 'waiting_for_user')
+        );
+
+      if (!task || task.kind !== 'claude_code_task') return undefined;
+
+      return task.status === 'waiting_for_user' ? 'waiting_for_user' : 'running';
+    },
+    [activeGroupChannelId, groupMessages]
+  );
+  const isClaudeCodeConversation =
+    isClaudeCodeDmConversation || activeGroupChannelId !== undefined;
+  const activePanelChannelId = isClaudeCodeDmConversation
+    ? selectedDmChannelId
+    : activeGroupChannelId;
+  const shouldConnectPty =
+    isClaudeCodeDmConversation || (activeGroupChannelId !== undefined && open);
   const resolvePanelHost = useCallback(
     () => {
       return document.querySelector<HTMLElement>(
@@ -282,7 +326,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
 
     const updatePanelHost = () => setPanelHost(resolvePanelHost());
     const messagesContainer = document.querySelector<HTMLElement>(
-      `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`
+      `[data-messages-container][data-channel-id="${activePanelChannelId}"]`
     );
     const observer = new MutationObserver(updatePanelHost);
 
@@ -293,7 +337,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
     });
 
     return () => observer.disconnect();
-  }, [isClaudeCodeConversation, resolvePanelHost, selectedDmChannelId]);
+  }, [activePanelChannelId, isClaudeCodeConversation, resolvePanelHost]);
 
   useEffect(() => {
     if (!isClaudeCodeConversation) {
@@ -303,7 +347,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
 
     const updateMascotRect = () => {
       const messagesContainer = document.querySelector<HTMLElement>(
-        `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`
+        `[data-messages-container][data-channel-id="${activePanelChannelId}"]`
       );
       const bounds = messagesContainer?.getBoundingClientRect();
 
@@ -318,7 +362,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
       });
     };
     const messagesContainer = document.querySelector<HTMLElement>(
-      `[data-messages-container][data-channel-id="${selectedDmChannelId}"]`
+      `[data-messages-container][data-channel-id="${activePanelChannelId}"]`
     );
     const resizeObserver = new ResizeObserver(updateMascotRect);
 
@@ -333,10 +377,10 @@ const ClaudeCodeFloatingPanel = memo(() => {
       window.removeEventListener('resize', updateMascotRect);
       resizeObserver.disconnect();
     };
-  }, [isClaudeCodeConversation, selectedDmChannelId]);
+  }, [activePanelChannelId, isClaudeCodeConversation]);
 
   useEffect(() => {
-    if (!isClaudeCodeConversation || !historyOpen) {
+    if (!isClaudeCodeDmConversation || !historyOpen) {
       setHistoryPanelBottom(0);
       return;
     }
@@ -354,12 +398,13 @@ const ClaudeCodeFloatingPanel = memo(() => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateHistoryPanelBottom);
     };
-  }, [historyOpen, isClaudeCodeConversation, updateHistoryPanelBottom]);
+  }, [historyOpen, isClaudeCodeDmConversation, updateHistoryPanelBottom]);
 
   useEffect(() => {
-    if (!isClaudeCodeConversation) {
+    if (!shouldConnectPty) {
       wsRef.current?.close();
       wsRef.current = null;
+      outputBufferRef.current = '';
 
       return;
     }
@@ -367,7 +412,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
     outputBufferRef.current = '';
 
     const connect = () => {
-      const ws = new WebSocket(getWsUrl());
+      const ws = new WebSocket(getWsUrl(activeGroupChannelId));
 
       wsRef.current = ws;
 
@@ -414,14 +459,18 @@ const ClaudeCodeFloatingPanel = memo(() => {
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [isClaudeCodeConversation, sendResize]);
+  }, [activeGroupChannelId, sendResize, shouldConnectPty]);
 
   useEffect(() => {
-    if (!dmResolved || isClaudeCodeConversation) return;
+    if (!dmResolved || isClaudeCodeDmConversation) return;
 
     wsRef.current?.close();
     wsRef.current = null;
     closeClaudeCodeHistoryPanel();
+
+    if (activeGroupChannelId !== undefined) {
+      return;
+    }
 
     if (status.state === 'running' || status.state === 'waiting_for_user') {
       closeClaudeCodePanel();
@@ -431,7 +480,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
 
     closeClaudeCodePanel();
     void getTRPCClient().agents.stopClaudeCodeSession.mutate().catch(() => undefined);
-  }, [dmResolved, isClaudeCodeConversation, status.state]);
+  }, [activeGroupChannelId, dmResolved, isClaudeCodeDmConversation, status.state]);
 
   const refreshHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -448,10 +497,10 @@ const ClaudeCodeFloatingPanel = memo(() => {
   }, []);
 
   useEffect(() => {
-    if (!isClaudeCodeConversation || !historyOpen) return;
+    if (!isClaudeCodeDmConversation || !historyOpen) return;
 
     void refreshHistory();
-  }, [historyOpen, isClaudeCodeConversation, refreshHistory]);
+  }, [historyOpen, isClaudeCodeDmConversation, refreshHistory]);
 
   const resumeHistory = useCallback(
     async (chatSessionId: string) => {
@@ -491,6 +540,12 @@ const ClaudeCodeFloatingPanel = memo(() => {
     [refreshHistory]
   );
 
+  useEffect(() => {
+    if (activeGroupChannelId === undefined || !historyOpen) return;
+
+    closeClaudeCodeHistoryPanel();
+  }, [activeGroupChannelId, historyOpen]);
+
   const togglePanelFromMascot = useCallback(() => {
     closeClaudeCodeHistoryPanel();
 
@@ -506,8 +561,10 @@ const ClaudeCodeFloatingPanel = memo(() => {
     window.setTimeout(scrollToPanelHost, 120);
   }, [historyOpen, open, scrollToPanelHost]);
 
+  const displayedStatusState = activeGroupClaudeCodeState ?? status.state;
   const isClaudeCodeBusy =
-    status.state === 'running' || status.state === 'waiting_for_user';
+    displayedStatusState === 'running' ||
+    displayedStatusState === 'waiting_for_user';
   const mascotSrc = showHappyMascot
     ? '/claude-code/happy.svg'
     : isClaudeCodeBusy
@@ -544,6 +601,7 @@ const ClaudeCodeFloatingPanel = memo(() => {
       </button>
 
       {historyOpen &&
+        isClaudeCodeDmConversation &&
         createPortal(
           <aside
             className="fixed right-0 z-50 flex w-[min(384px,calc(100vw-3rem))] flex-col border-l border-border bg-card text-foreground"

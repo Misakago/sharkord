@@ -36,6 +36,7 @@ type TMessageRendererProps = {
   onRenameFile?: (file: TFile, name: string) => void;
   onReplaceFile?: (file: TFile, replacement: File) => Promise<unknown>;
   showClaudeCodePanelHost?: boolean;
+  allowClaudeCodePanelOpen?: boolean;
 };
 
 const MessageRenderer = memo(
@@ -47,7 +48,8 @@ const MessageRenderer = memo(
     activeFileId,
     onRenameFile,
     onReplaceFile,
-    showClaudeCodePanelHost
+    showClaudeCodePanelHost,
+    allowClaudeCodePanelOpen = false
   }: TMessageRendererProps) => {
     const { t } = useTranslation();
     const editedByUser = useUserById(message.editedBy ?? -1);
@@ -164,7 +166,7 @@ const MessageRenderer = memo(
           />
         ))}
 
-        {isClaudeCodeActive && (
+        {isClaudeCodeActive && allowClaudeCodePanelOpen && (
           <button
             type="button"
             className="flex w-fit items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-left text-sm text-emerald-100 hover:bg-emerald-500/15"
@@ -180,7 +182,18 @@ const MessageRenderer = memo(
           </button>
         )}
 
-        {showClaudeCodePanelHost && (
+        {isClaudeCodeActive && !allowClaudeCodePanelOpen && (
+          <div className="flex w-fit items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-left text-sm text-emerald-100">
+            <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+            <span className="font-medium">
+              {claudeCodeTask?.status === 'waiting_for_user'
+                ? '等待回答...'
+                : '正在处理...'}
+            </span>
+          </div>
+        )}
+
+        {showClaudeCodePanelHost && allowClaudeCodePanelOpen && (
           <div data-claude-code-active-panel-host="true" className="mt-2" />
         )}
 

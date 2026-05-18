@@ -26,6 +26,7 @@ type TMessagesGroupProps = {
   replyTargetMessageId?: number;
   activeThreadMessageId?: number;
   claudeCodePanelMessageId?: number;
+  allowClaudeCodePanelOpen?: boolean;
 };
 
 const MessagesGroup = memo(
@@ -39,7 +40,8 @@ const MessagesGroup = memo(
     onEditMessageSelect,
     replyTargetMessageId,
     activeThreadMessageId,
-    claudeCodePanelMessageId
+    claudeCodePanelMessageId,
+    allowClaudeCodePanelOpen
   }: TMessagesGroupProps) => {
     const firstMessage = group[0];
     const pluginMetadata = usePluginMetadata(firstMessage.pluginId);
@@ -70,6 +72,7 @@ const MessagesGroup = memo(
           isInlineReplyTarget={message.id === replyTargetMessageId}
           isActiveThread={message.id === activeThreadMessageId}
           showClaudeCodePanelHost={message.id === claudeCodePanelMessageId}
+          allowClaudeCodePanelOpen={allowClaudeCodePanelOpen}
         />
       </div>
     );

@@ -47,6 +47,8 @@
   "directMessages": "私信",
   "search": "搜索",
   "close": "关闭",
+  "searchGroups": "搜索群组",
+  "noGroupsAvailable": "暂无可用群组",
   "searchDirectMessages": "搜索私信联系人",
   "failedLoadDMs": "加载私信失败",
   "couldNotOpenDM": "无法打开私信",

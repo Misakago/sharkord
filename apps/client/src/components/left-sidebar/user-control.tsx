@@ -1,6 +1,6 @@
 import { openServerScreen } from '@/features/server-screens/actions';
+import { disconnectFromServer } from '@/features/server/actions';
 import { useOwnPublicUser } from '@/features/server/users/hooks';
-import { cleanup } from '@/lib/trpc';
 import { Button } from '@mikotord/ui';
 import { LogOut, Settings } from 'lucide-react';
 import { memo, useCallback } from 'react';
@@ -18,7 +18,7 @@ const UserControl = memo(() => {
   }, []);
 
   const handleLogoutClick = useCallback(() => {
-    cleanup();
+    disconnectFromServer();
   }, []);
 
   if (!ownPublicUser) return null;

@@ -1337,6 +1337,12 @@ const TextFileTabs = memo(
           >
             {tabs.map((tab, index) => {
               const meta = getTabMeta(tab, compact);
+              const fullscreenGalleryFile =
+                isFullscreenBar && tab.kind === 'imageGallery'
+                  ? (tab.files[galleryActiveIndex] ?? tab.files[0])
+                  : null;
+              const tabLabel =
+                fullscreenGalleryFile?.originalName ?? getTabLabel(tab);
               const removableTabFiles =
                 tab.kind === 'content'
                   ? []
@@ -1367,7 +1373,7 @@ const TextFileTabs = memo(
                       'flex h-full min-w-0 flex-1 items-center text-left',
                       isFullscreenBar ? 'gap-2 px-3' : 'gap-1.5 px-2'
                     )}
-                    title={getTabLabel(tab)}
+                    title={tabLabel}
                     onClick={() => {
                       setActiveIndex(index);
                       setInlineCollapsed(false);
@@ -1378,11 +1384,13 @@ const TextFileTabs = memo(
                     }}
                   >
                     {getTabIcon(tab)}
-                    {tab.kind === 'other' ||
-                    tab.kind === 'imageGallery' ||
-                    tab.kind === 'content' ? (
+                    {fullscreenGalleryFile ? (
+                      renderTabName(fullscreenGalleryFile)
+                    ) : tab.kind === 'other' ||
+                      tab.kind === 'imageGallery' ||
+                      tab.kind === 'content' ? (
                       <span className="min-w-0 truncate text-sm font-medium">
-                        {getTabLabel(tab)}
+                        {tabLabel}
                       </span>
                     ) : (
                       renderTabName(tab.file)
@@ -1521,8 +1529,6 @@ const TextFileTabs = memo(
       activeTab?.kind === 'imageGallery'
         ? (activeTab.files[galleryActiveIndex] ?? activeTab.files[0])
         : activeFile;
-    const isFullscreenImageTab =
-      activeTab?.kind === 'image' || activeTab?.kind === 'imageGallery';
     const inlinePreviewClass = (() => {
       if (!inlinePreviewVisible || !activeTab) return 'w-fit';
 
@@ -1598,8 +1604,7 @@ const TextFileTabs = memo(
                 })}
               </div>
               <div className="flex shrink-0 items-center gap-1 px-2">
-                {context !== 'compose' &&
-                  fullscreenActiveFile &&
+                {fullscreenActiveFile &&
                   fullscreenActiveFile.onRename &&
                   !renamingKey && (
                     <Button

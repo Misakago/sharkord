@@ -1,4 +1,4 @@
-import { ActivityLogType, ChannelType, Permission } from '@mikotord/shared';
+import { ActivityLogType, ChannelType } from '@mikotord/shared';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
@@ -16,8 +16,6 @@ const addChannelRoute = protectedProcedure
     })
   )
   .mutation(async ({ input, ctx }) => {
-    await ctx.needsPermission(Permission.MANAGE_CHANNELS);
-
     const channel = await db.transaction(async (tx) => {
       const maxPositionChannel = await tx
         .select()

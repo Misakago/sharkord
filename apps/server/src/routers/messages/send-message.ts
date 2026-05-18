@@ -116,7 +116,10 @@ const sendMessageRoute = rateLimitedProcedure(protectedProcedure, {
     ]);
 
     const { enablePlugins } = settings;
-    const filesToAttach = input.files;
+    const filesToAttach = input.files.slice(
+      0,
+      Math.max(0, settings.storageMaxFilesPerMessage)
+    );
 
     if (filesToAttach.length > 0) {
       invariant(settings.storageUploadEnabled, {

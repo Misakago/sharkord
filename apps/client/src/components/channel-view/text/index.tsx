@@ -11,6 +11,7 @@ import {
   useMessageJumpTarget,
   useThreadSidebar
 } from '@/features/app/hooks';
+import { useChannelById } from '@/features/server/channels/hooks';
 import {
   useChannelCan,
   useTypingUsersByChannelId
@@ -93,6 +94,8 @@ const TextChannel = memo(
     } = useMessages(channelId);
     const messageJumpTarget = useMessageJumpTarget();
     const claudeCodePanelOpen = useClaudeCodePanelOpen();
+    const channel = useChannelById(channelId);
+    const allowClaudeCodePanelOpen = Boolean(channel);
     const isJumpingToChannel = messageJumpTarget?.channelId === channelId;
     const activeClaudeCodeTaskMessageId = useMemo(
       () =>
@@ -109,9 +112,13 @@ const TextChannel = memo(
       [messages]
     );
     const shouldShowClaudeCodePanelHost =
-      claudeCodePanelOpen && activeClaudeCodeTaskMessageId !== undefined;
+      allowClaudeCodePanelOpen &&
+      claudeCodePanelOpen &&
+      activeClaudeCodeTaskMessageId !== undefined;
     const showClaudeCodeVirtualPanelBubble =
-      claudeCodePanelOpen && activeClaudeCodeTaskMessageId === undefined;
+      allowClaudeCodePanelOpen &&
+      claudeCodePanelOpen &&
+      activeClaudeCodeTaskMessageId === undefined;
     const hasPendingClaudeCodeQuestion = useMemo(
       () =>
         messages.some((message) =>
@@ -383,6 +390,7 @@ const TextChannel = memo(
                     ? activeClaudeCodeTaskMessageId
                     : undefined
                 }
+                allowClaudeCodePanelOpen={allowClaudeCodePanelOpen}
               />
             ))}
             {showClaudeCodeVirtualPanelBubble && (

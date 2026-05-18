@@ -47,6 +47,8 @@
   "directMessages": "Direct Messages",
   "search": "Search",
   "close": "Close",
+  "searchGroups": "Search groups",
+  "noGroupsAvailable": "No groups available",
   "searchDirectMessages": "Search direct message contacts",
   "failedLoadDMs": "Failed to load direct messages",
   "couldNotOpenDM": "Could not open direct message",

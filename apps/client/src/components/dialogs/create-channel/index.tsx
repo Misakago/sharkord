@@ -22,12 +22,20 @@ import type { TDialogBaseProps } from '../types';
 
 type TCreateChannelDialogProps = TDialogBaseProps & {
   categoryId: number;
+  defaultName?: string;
+  isGroupChat?: boolean;
 };
 
 const CreateChannelDialog = memo(
-  ({ isOpen, categoryId, close }: TCreateChannelDialogProps) => {
+  ({
+    isOpen,
+    categoryId,
+    defaultName = 'New Channel',
+    isGroupChat = false,
+    close
+  }: TCreateChannelDialogProps) => {
     const { t } = useTranslation('dialogs');
-    const [name, setName] = useState('New Channel');
+    const [name, setName] = useState(defaultName);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<TTrpcErrors>({});
 
@@ -55,7 +63,11 @@ const CreateChannelDialog = memo(
       <Dialog open={isOpen}>
         <DialogContent onInteractOutside={close} close={close}>
           <DialogHeader>
-            <DialogTitle>{t('createChannelTitle')}</DialogTitle>
+            <DialogTitle>
+              {isGroupChat
+                ? t('createGroupChatTitle')
+                : t('createChannelTitle')}
+            </DialogTitle>
           </DialogHeader>
 
           <Group label={t('channelTypeLabel')}>
@@ -70,10 +82,18 @@ const CreateChannelDialog = memo(
             </div>
           </Group>
 
-          <Group label={t('channelNameLabel')}>
+          <Group
+            label={
+              isGroupChat ? t('groupChatNameLabel') : t('channelNameLabel')
+            }
+          >
             <AutoFocus>
               <Input
-                placeholder={t('channelNamePlaceholder')}
+                placeholder={
+                  isGroupChat
+                    ? t('groupChatNamePlaceholder')
+                    : t('channelNamePlaceholder')
+                }
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 name="name"
@@ -89,7 +109,7 @@ const CreateChannelDialog = memo(
               {t('cancel')}
             </Button>
             <Button onClick={onSubmit} disabled={loading || !name}>
-              {t('createChannelBtn')}
+              {isGroupChat ? t('createGroupChatBtn') : t('createChannelBtn')}
             </Button>
           </DialogFooter>
         </DialogContent>

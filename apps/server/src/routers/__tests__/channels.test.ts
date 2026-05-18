@@ -1,19 +1,31 @@
 import { ChannelPermission, ChannelType } from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
+import { eq } from 'drizzle-orm';
 import { initTest } from '../../__tests__/helpers';
+import { tdb } from '../../__tests__/setup';
 import { getChannelsReadStatesForUser } from '../../db/queries/channels';
+import { channels as channelsTable } from '../../db/schema';
 
 describe('channels router', () => {
-  test('should throw when user lacks permissions (add)', async () => {
+  test('should allow users without permissions to add text channels', async () => {
     const { caller } = await initTest(2);
 
-    await expect(
-      caller.channels.add({
-        type: ChannelType.TEXT,
-        name: 'new-channel',
-        categoryId: 1
-      })
-    ).rejects.toThrow('Insufficient permissions');
+    const channelId = await caller.channels.add({
+      type: ChannelType.TEXT,
+      name: 'new-channel',
+      categoryId: 1
+    });
+
+    const channel = await tdb
+      .select()
+      .from(channelsTable)
+      .where(eq(channelsTable.id, channelId))
+      .get();
+
+    expect(channel).toBeDefined();
+    expect(channel?.name).toBe('new-channel');
+    expect(channel?.type).toBe(ChannelType.TEXT);
+    expect(channel?.categoryId).toBe(1);
   });
 
   test('should throw when user lacks permissions (get)', async () => {

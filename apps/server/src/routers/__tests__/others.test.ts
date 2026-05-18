@@ -1,4 +1,4 @@
-import type { TTempFile } from '@mikotord/shared';
+import { UserStatus, type TTempFile } from '@mikotord/shared';
 import { describe, expect, test } from 'bun:test';
 import {
   getCaller,
@@ -46,6 +46,12 @@ describe('others router', () => {
     for (const user of result.users) {
       expect(user._identity).toBeUndefined();
     }
+
+    const claudeCodeUser = result.users.find(
+      (user) => user.name === 'ClaudeCode'
+    );
+
+    expect(claudeCodeUser?.status).toBe(UserStatus.ONLINE);
   });
 
   test('should ask for password if server has one set', async () => {

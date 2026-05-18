@@ -1,9 +1,11 @@
 import {
+  ChannelPermission,
   ChannelType,
   FileSaveType,
   ServerEvents,
   getErrorMessage,
   getPlainTextFromHtml,
+  hasMention,
   type TClaudeCodeAskUserQuestion,
   type TClaudeCodeAskUserQuestionAnswers,
   type TClaudeCodeAskUserQuestionMetadata,
@@ -14,8 +16,8 @@ import {
 } from '@mikotord/shared';
 import { randomUUIDv7 } from 'bun';
 import { spawn as spawnChildProcess } from 'child_process';
-import { randomUUID } from 'crypto';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { createHash, randomUUID } from 'crypto';
+import { and, asc, eq, gt, inArray, lte } from 'drizzle-orm';
 import fs from 'fs/promises';
 import http from 'http';
 import path from 'path';
@@ -23,26 +25,30 @@ import { fileURLToPath } from 'url';
 import { WebSocket, WebSocketServer } from 'ws';
 import { config } from '../config';
 import { db } from '../db';
-import { publishChannelPermissions, publishMessage } from '../db/publishers';
+import {
+  publishChannelPermissions,
+  publishMessage,
+  publishUser
+} from '../db/publishers';
+import { channelUserCan } from '../db/queries/channels';
 import {
   getDirectMessageChannel,
   getDirectMessageChannelParticipantIds,
+  isDirectMessageChannel,
   normalizePair
 } from '../db/queries/dms';
-import { getMessage } from '../db/queries/messages';
-import {
-  getUserByIdentity,
-  getUserByToken
-} from '../db/queries/users';
+import { getMessage, joinMessagesWithRelations } from '../db/queries/messages';
+import { getUserByIdentity, getUserByToken } from '../db/queries/users';
 import {
   channels,
   createMessageBusinessId,
   directMessages,
+  files,
   messageFiles,
   messages,
   users
 } from '../db/schema';
-import { DATA_PATH, PUBLIC_PATH } from '../helpers/paths';
+import { DATA_PATH, INTERFACE_PATH, PUBLIC_PATH } from '../helpers/paths';
 import { logger } from '../logger';
 import { fileManager } from '../utils/file-manager';
 import { pubsub } from '../utils/pubsub';
@@ -57,8 +63,24 @@ type TPty = {
   kill: () => void;
 };
 
-type TClaudeCodeSession = {
+type TClaudeCodeDmScope = {
+  kind: 'dm';
+  key: string;
+  storageKey: string;
   userId: number;
+};
+
+type TClaudeCodeChannelScope = {
+  kind: 'channel';
+  key: string;
+  storageKey: string;
+  channelId: number;
+};
+
+type TClaudeCodeSessionScope = TClaudeCodeDmScope | TClaudeCodeChannelScope;
+
+type TClaudeCodeSession = {
+  scope: TClaudeCodeSessionScope;
   pty?: TPty;
   clients: Set<WebSocket>;
   askUserQuestionRequests: Map<string, TPendingAskUserQuestionRequest>;
@@ -72,6 +94,8 @@ type TClaudeCodeSession = {
   chatSessionId?: string;
   claudeSessionId?: string;
   readyMarkedChatSessionId?: string;
+  lastInjectedMessageDbId?: number;
+  pendingGroupTriggerMessageId?: number;
   bracketedPasteMode?: boolean;
   shouldResumeClaudeSession?: boolean;
   stopping?: boolean;
@@ -85,6 +109,16 @@ type TClaudeCodeChatSessionRecord = {
   createdAt: number;
   updatedAt: number;
   readyAt?: number;
+};
+
+type TClaudeCodeSessionStateRecord = {
+  chatSessionId?: string;
+  claudeSessionId?: string;
+  sessionId?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  readyAt?: number;
+  lastInjectedMessageDbId?: number;
 };
 
 type TClaudeCodeMessageSnapshot = {
@@ -124,7 +158,7 @@ type TAskUserQuestionHookResponse = {
 
 type TPendingAskUserQuestionRequest = {
   requestId: string;
-  userId: number;
+  scope: TClaudeCodeSessionScope;
   runId: string;
   channelId: number;
   messageId: number;
@@ -135,6 +169,8 @@ type TPendingAskUserQuestionRequest = {
 
 const CLAUDE_CODE_AGENT_IDENTITY = 'agent:claude-code';
 const CLAUDE_CODE_AGENT_NAME = 'ClaudeCode';
+const CLAUDE_CODE_AVATAR_ORIGINAL_NAME = 'claude-code-avatar.png';
+const CLAUDE_CODE_AVATAR_MIME_TYPE = 'image/png';
 const CLAUDE_CODE_PTY_PATH = '/claude-code/pty';
 const CLAUDE_CODE_STOP_HOOK_PATH = '/claude-code/hooks/stop';
 const CLAUDE_CODE_ASK_USER_QUESTION_HOOK_PATH =
@@ -166,12 +202,52 @@ const WORKSPACE_ROOT = getWorkspaceRoot();
 const PTY_HELPER_PATH = fileURLToPath(
   new URL('./claude-code-pty-helper.mjs', import.meta.url)
 );
-const getClaudeSessionPath = (userId: number) =>
-  path.join(DATA_PATH, 'claude-code', `${userId}.session.json`);
-const getClaudeChatSessionsPath = (userId: number) =>
-  path.join(DATA_PATH, 'claude-code', `${userId}.chat-sessions.json`);
-const getClaudeChatSessionMessagesPath = (userId: number, chatSessionId: string) =>
-  path.join(DATA_PATH, 'claude-code', `${userId}.${chatSessionId}.messages.json`);
+const CLAUDE_CODE_AVATAR_SOURCE_PATHS = [
+  path.resolve(
+    import.meta.dir,
+    '..',
+    '..',
+    '..',
+    'client',
+    'public',
+    'claude-code',
+    CLAUDE_CODE_AVATAR_ORIGINAL_NAME
+  ),
+  path.resolve(
+    process.cwd(),
+    '..',
+    'client',
+    'public',
+    'claude-code',
+    CLAUDE_CODE_AVATAR_ORIGINAL_NAME
+  ),
+  path.join(INTERFACE_PATH, 'claude-code', CLAUDE_CODE_AVATAR_ORIGINAL_NAME)
+];
+const createDmScope = (userId: number): TClaudeCodeDmScope => ({
+  kind: 'dm',
+  key: `dm:${userId}`,
+  storageKey: String(userId),
+  userId
+});
+const createChannelScope = (channelId: number): TClaudeCodeChannelScope => ({
+  kind: 'channel',
+  key: `channel:${channelId}`,
+  storageKey: `channel-${channelId}`,
+  channelId
+});
+const getClaudeSessionPath = (storageKey: string) =>
+  path.join(DATA_PATH, 'claude-code', `${storageKey}.session.json`);
+const getClaudeChatSessionsPath = (storageKey: string) =>
+  path.join(DATA_PATH, 'claude-code', `${storageKey}.chat-sessions.json`);
+const getClaudeChatSessionMessagesPath = (
+  storageKey: string,
+  chatSessionId: string
+) =>
+  path.join(
+    DATA_PATH,
+    'claude-code',
+    `${storageKey}.${chatSessionId}.messages.json`
+  );
 const getClaudeProjectPath = () =>
   path.join(
     process.env.HOME ?? '/Users/xy',
@@ -260,7 +336,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isPathInside = (parent: string, child: string) => {
   const relative = path.relative(parent, child);
 
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  return (
+    relative === '' ||
+    (!relative.startsWith('..') && !path.isAbsolute(relative))
+  );
 };
 
 const normalizeAskUserQuestions = (
@@ -278,17 +357,23 @@ const normalizeAskUserQuestions = (
 
   return rawQuestions.map((rawQuestion, questionIndex) => {
     if (!isRecord(rawQuestion)) {
-      throw new Error(`AskUserQuestion question ${questionIndex + 1} is invalid`);
+      throw new Error(
+        `AskUserQuestion question ${questionIndex + 1} is invalid`
+      );
     }
 
     const { question, header, options, multiSelect } = rawQuestion;
 
     if (typeof question !== 'string' || !question.trim()) {
-      throw new Error(`AskUserQuestion question ${questionIndex + 1} has no text`);
+      throw new Error(
+        `AskUserQuestion question ${questionIndex + 1} has no text`
+      );
     }
 
     if (typeof header !== 'string' || !header.trim()) {
-      throw new Error(`AskUserQuestion question ${questionIndex + 1} has no header`);
+      throw new Error(
+        `AskUserQuestion question ${questionIndex + 1} has no header`
+      );
     }
 
     if (!Array.isArray(options) || options.length < 2 || options.length > 4) {
@@ -386,13 +471,6 @@ const SUBMIT_CURRENT_TTY_INPUT = '\r';
 const normalizePtyInputLineEndings = (value: string) =>
   value.replace(/\r\n?/g, '\n');
 
-const normalizeClaudePromptLine = (value: string) =>
-  normalizePtyInputLineEndings(value)
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(' ');
-
 const toPtyPastePayload = (
   rawText: string,
   options: { bracketedPaste: boolean }
@@ -421,11 +499,15 @@ const createNodePtyHelper = (
       rows: options.rows
     })
   ).toString('base64');
-  const child = spawnChildProcess(CLAUDE_CODE_NODE_COMMAND, [PTY_HELPER_PATH, payload], {
-    cwd: options.cwd,
-    env: options.env,
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
+  const child = spawnChildProcess(
+    CLAUDE_CODE_NODE_COMMAND,
+    [PTY_HELPER_PATH, payload],
+    {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    }
+  );
   const dataHandlers = new Set<(data: string) => void>();
   const exitHandlers = new Set<
     (event: { exitCode: number; signal?: number | string }) => void
@@ -517,7 +599,7 @@ const createNodePtyHelper = (
 };
 
 class ClaudeCodeAgentManager {
-  private sessions = new Map<number, TClaudeCodeSession>();
+  private sessions = new Map<string, TClaudeCodeSession>();
   private agentUserId: number | undefined;
 
   public getAgentIdentity = () => CLAUDE_CODE_AGENT_IDENTITY;
@@ -526,6 +608,77 @@ class ClaudeCodeAgentManager {
 
   public getPtyPath = () => CLAUDE_CODE_PTY_PATH;
 
+  private readAgentAvatar = async () => {
+    for (const avatarPath of CLAUDE_CODE_AVATAR_SOURCE_PATHS) {
+      try {
+        return await fs.readFile(avatarPath);
+      } catch {
+        // Try the next runtime location.
+      }
+    }
+
+    throw new Error('ClaudeCode avatar image not found');
+  };
+
+  private ensureAgentAvatar = async (userId: number) => {
+    const avatar = await this.readAgentAvatar();
+    const md5 = createHash('md5').update(avatar).digest('hex');
+    const name = `system-agent-claude-code-avatar-${md5.slice(0, 12)}.png`;
+    const avatarPath = path.join(PUBLIC_PATH, name);
+
+    await fs.mkdir(PUBLIC_PATH, { recursive: true });
+    await fs.writeFile(avatarPath, avatar);
+
+    const existing = await db
+      .select()
+      .from(files)
+      .where(eq(files.name, name))
+      .get();
+
+    if (existing) {
+      if (
+        existing.userId !== userId ||
+        existing.originalName !== CLAUDE_CODE_AVATAR_ORIGINAL_NAME ||
+        existing.md5 !== md5 ||
+        existing.size !== avatar.length ||
+        existing.mimeType !== CLAUDE_CODE_AVATAR_MIME_TYPE ||
+        existing.extension !== '.png'
+      ) {
+        await db
+          .update(files)
+          .set({
+            userId,
+            originalName: CLAUDE_CODE_AVATAR_ORIGINAL_NAME,
+            md5,
+            size: avatar.length,
+            mimeType: CLAUDE_CODE_AVATAR_MIME_TYPE,
+            extension: '.png',
+            updatedAt: Date.now()
+          })
+          .where(eq(files.id, existing.id));
+      }
+
+      return existing.id;
+    }
+
+    const inserted = await db
+      .insert(files)
+      .values({
+        name,
+        originalName: CLAUDE_CODE_AVATAR_ORIGINAL_NAME,
+        md5,
+        userId,
+        size: avatar.length,
+        mimeType: CLAUDE_CODE_AVATAR_MIME_TYPE,
+        extension: '.png',
+        createdAt: Date.now()
+      })
+      .returning({ id: files.id })
+      .get();
+
+    return inserted.id;
+  };
+
   public ensureAgentUser = async () => {
     if (this.agentUserId) return this.agentUserId;
 
@@ -533,16 +686,24 @@ class ClaudeCodeAgentManager {
 
     if (existing) {
       this.agentUserId = existing.id;
+      const avatarId = await this.ensureAgentAvatar(existing.id);
 
-      if (existing.name !== CLAUDE_CODE_AGENT_NAME || existing.banned) {
+      if (
+        existing.name !== CLAUDE_CODE_AGENT_NAME ||
+        existing.banned ||
+        existing.avatarId !== avatarId
+      ) {
         await db
           .update(users)
           .set({
             name: CLAUDE_CODE_AGENT_NAME,
             banned: false,
+            avatarId,
             updatedAt: Date.now()
           })
           .where(eq(users.id, existing.id));
+
+        await publishUser(existing.id, 'update');
       }
 
       return existing.id;
@@ -568,13 +729,25 @@ class ClaudeCodeAgentManager {
       .returning()
       .get();
 
+    const avatarId = await this.ensureAgentAvatar(user.id);
+
+    await db
+      .update(users)
+      .set({
+        avatarId,
+        updatedAt: Date.now()
+      })
+      .where(eq(users.id, user.id));
+
     this.agentUserId = user.id;
 
     return user.id;
   };
 
-  public getStatusForUser = async (userId: number): Promise<TClaudeCodeStatus> => {
-    const session = this.sessions.get(userId);
+  public getStatusForUser = async (
+    userId: number
+  ): Promise<TClaudeCodeStatus> => {
+    const session = this.sessions.get(createDmScope(userId).key);
 
     if (!session) {
       return {
@@ -624,10 +797,18 @@ class ClaudeCodeAgentManager {
       return newChannel;
     });
 
-    pubsub.publishFor([userId, agentUserId], ServerEvents.CHANNEL_CREATE, channel);
-    pubsub.publishFor([userId, agentUserId], ServerEvents.DM_CONVERSATION_OPEN, {
-      channelId: channel.id
-    });
+    pubsub.publishFor(
+      [userId, agentUserId],
+      ServerEvents.CHANNEL_CREATE,
+      channel
+    );
+    pubsub.publishFor(
+      [userId, agentUserId],
+      ServerEvents.DM_CONVERSATION_OPEN,
+      {
+        channelId: channel.id
+      }
+    );
 
     await publishChannelPermissions([userId, agentUserId]);
 
@@ -645,7 +826,13 @@ class ClaudeCodeAgentManager {
   private publishStatus = (session: TClaudeCodeSession) => {
     session.status = getStatus(session);
 
-    pubsub.publishFor(session.userId, ServerEvents.CLAUDE_CODE_STATUS, session.status);
+    if (session.scope.kind === 'dm') {
+      pubsub.publishFor(
+        session.scope.userId,
+        ServerEvents.CLAUDE_CODE_STATUS,
+        session.status
+      );
+    }
 
     for (const client of session.clients) {
       sendJson(client, { type: 'status', status: session.status });
@@ -655,15 +842,19 @@ class ClaudeCodeAgentManager {
   private getSessionByHookToken = (token: string) =>
     Array.from(this.sessions.values()).find((item) => item.hookToken === token);
 
-  private getSession = (userId: number) => {
-    let session = this.sessions.get(userId);
+  private getSessionForScope = (scope: TClaudeCodeSessionScope) => {
+    let session = this.sessions.get(scope.key);
 
     if (!session) {
       const hookToken = randomUUIDv7();
-      const settingsPath = path.join(DATA_PATH, 'claude-code', `${userId}.settings.json`);
+      const settingsPath = path.join(
+        DATA_PATH,
+        'claude-code',
+        `${scope.storageKey}.settings.json`
+      );
 
       session = {
-        userId,
+        scope,
         hookToken,
         settingsPath,
         clients: new Set(),
@@ -676,11 +867,14 @@ class ClaudeCodeAgentManager {
         }
       };
 
-      this.sessions.set(userId, session);
+      this.sessions.set(scope.key, session);
     }
 
     return session;
   };
+
+  private getSession = (userId: number) =>
+    this.getSessionForScope(createDmScope(userId));
 
   private buildSettings = (session: TClaudeCodeSession) => ({
     hooks: {
@@ -711,17 +905,26 @@ class ClaudeCodeAgentManager {
     }
   });
 
-  private getSystemPrompt = (session: TClaudeCodeSession) =>
-    [
+  private getSystemPrompt = (session: TClaudeCodeSession) => {
+    const scopePrompt =
+      session.scope.kind === 'dm'
+        ? `当前私聊用户 ID: ${session.scope.userId}。这是稳定上下文，不需要用户每条消息重复提供。`
+        : [
+            `当前群聊频道 ID: ${session.scope.channelId}。`,
+            '注入内容可能包含多位用户的消息；必须使用每条消息的 user_id 区分发送者、引用关系和指令归属。'
+          ].join('\n');
+
+    return [
       '你是聊天室内置的 ClaudeCode Agent。',
-      `当前唯一聊天用户 ID: ${session.userId}。这是稳定上下文，不需要用户每条消息重复提供。`,
-      'TTY stdin 注入内容只包含聊天气泡原文、附件路径和短随机字符串 id；不要把系统字段当作用户正文。',
+      scopePrompt,
+      'TTY stdin 注入内容是结构化聊天室消息批次；不要把字段名、id 或时间戳当作需要复述的正文。',
       `如需消息时间、附件路径、发送者等详细信息，使用本地接口查询: curl -s "http://127.0.0.1:${config.server.port}${CLAUDE_CODE_MESSAGE_LOOKUP_PATH}/<id>?token=${session.hookToken}"。`,
-      'id 是当前 ClaudeCode 聊天室会话内的业务消息 ID，不是数据库自增主键；不要猜测、递增或跨会话复用。',
+      'message_id 是当前 ClaudeCode 聊天室会话内的业务消息 ID，不是数据库自增主键；不要猜测、递增或跨会话复用。',
       '优先遵循项目 CLAUDE.md 中的 Agent 行为约束。',
       '完成后只输出简洁 Markdown 回复；如果有输出产物，在最终回复末尾追加 @files(path1,path2)，只列真实存在的文件路径。',
       '不要把长篇日志、过程推理或无关命令输出放进最终回复。'
     ].join('\n');
+  };
 
   private getMessageMetadata = async (messageId: number) => {
     const row = await db
@@ -821,12 +1024,34 @@ class ClaudeCodeAgentManager {
     );
   };
 
+  private readSessionState = async (
+    session: TClaudeCodeSession
+  ): Promise<TClaudeCodeSessionStateRecord> =>
+    fs
+      .readFile(getClaudeSessionPath(session.scope.storageKey), 'utf8')
+      .then((value) => JSON.parse(value) as TClaudeCodeSessionStateRecord)
+      .catch(() => ({}));
+
+  private writeSessionStatePatch = async (
+    session: TClaudeCodeSession,
+    patch: TClaudeCodeSessionStateRecord
+  ) => {
+    const sessionPath = getClaudeSessionPath(session.scope.storageKey);
+    const existing = await this.readSessionState(session);
+
+    await fs.mkdir(path.dirname(sessionPath), { recursive: true });
+    await fs.writeFile(
+      sessionPath,
+      JSON.stringify({ ...existing, ...patch }, null, 2)
+    );
+  };
+
   private readChatSessions = async (
-    userId: number
+    storageKey: string
   ): Promise<TClaudeCodeChatSessionRecord[]> => {
     try {
       const records = JSON.parse(
-        await fs.readFile(getClaudeChatSessionsPath(userId), 'utf8')
+        await fs.readFile(getClaudeChatSessionsPath(storageKey), 'utf8')
       ) as TClaudeCodeChatSessionRecord[];
 
       if (!Array.isArray(records)) return [];
@@ -844,20 +1069,20 @@ class ClaudeCodeAgentManager {
   };
 
   private writeChatSessions = async (
-    userId: number,
+    storageKey: string,
     records: TClaudeCodeChatSessionRecord[]
   ) => {
-    const sessionsPath = getClaudeChatSessionsPath(userId);
+    const sessionsPath = getClaudeChatSessionsPath(storageKey);
 
     await fs.mkdir(path.dirname(sessionsPath), { recursive: true });
     await fs.writeFile(sessionsPath, JSON.stringify(records, null, 2));
   };
 
   private upsertChatSession = async (
-    userId: number,
+    storageKey: string,
     record: TClaudeCodeChatSessionRecord
   ) => {
-    const records = await this.readChatSessions(userId);
+    const records = await this.readChatSessions(storageKey);
     const index = records.findIndex((item) => item.id === record.id);
 
     if (index >= 0) {
@@ -866,19 +1091,19 @@ class ClaudeCodeAgentManager {
       records.push(record);
     }
 
-    await this.writeChatSessions(userId, records);
+    await this.writeChatSessions(storageKey, records);
   };
 
   private markChatSessionReady = async (
-    userId: number,
+    storageKey: string,
     chatSessionId: string,
     claudeSessionId?: string
   ) => {
-    const records = await this.readChatSessions(userId);
+    const records = await this.readChatSessions(storageKey);
     const record = records.find((item) => item.id === chatSessionId);
 
     if (!record?.readyAt) {
-      await this.upsertChatSession(userId, {
+      await this.upsertChatSession(storageKey, {
         ...(record ?? {
           id: chatSessionId,
           claudeSessionId: claudeSessionId ?? randomUUID(),
@@ -890,10 +1115,13 @@ class ClaudeCodeAgentManager {
     }
   };
 
-  private hasChatSessionSnapshot = async (userId: number, chatSessionId: string) =>
+  private hasChatSessionSnapshot = async (
+    storageKey: string,
+    chatSessionId: string
+  ) =>
     Boolean(
       await fs
-        .stat(getClaudeChatSessionMessagesPath(userId, chatSessionId))
+        .stat(getClaudeChatSessionMessagesPath(storageKey, chatSessionId))
         .catch(() => undefined)
     );
 
@@ -908,10 +1136,10 @@ class ClaudeCodeAgentManager {
     };
   };
 
-  private createChatSessionRecord = async (userId: number) => {
+  private createChatSessionRecord = async (storageKey: string) => {
     const record = this.buildChatSessionRecord();
 
-    await this.upsertChatSession(userId, record);
+    await this.upsertChatSession(storageKey, record);
 
     return record;
   };
@@ -921,35 +1149,29 @@ class ClaudeCodeAgentManager {
     record: TClaudeCodeChatSessionRecord,
     shouldResume: boolean
   ) => {
-    const sessionPath = getClaudeSessionPath(session.userId);
     const updatedRecord = {
       ...record,
       updatedAt: Date.now()
     };
 
-    await this.upsertChatSession(session.userId, updatedRecord);
-    await fs.mkdir(path.dirname(sessionPath), { recursive: true });
-    await fs.writeFile(
-      sessionPath,
-      JSON.stringify(
-        {
-          chatSessionId: updatedRecord.id,
-          claudeSessionId: updatedRecord.claudeSessionId,
-          readyAt: updatedRecord.readyAt,
-          updatedAt: updatedRecord.updatedAt
-        },
-        null,
-        2
-      )
-    );
+    await this.upsertChatSession(session.scope.storageKey, updatedRecord);
+    await this.writeSessionStatePatch(session, {
+      chatSessionId: updatedRecord.id,
+      claudeSessionId: updatedRecord.claudeSessionId,
+      readyAt: updatedRecord.readyAt,
+      updatedAt: updatedRecord.updatedAt
+    });
 
     session.chatSessionId = updatedRecord.id;
     session.claudeSessionId = updatedRecord.claudeSessionId;
     session.shouldResumeClaudeSession = shouldResume;
   };
 
-  private rebindClaudeSession = async (userId: number, chatSessionId?: string) => {
-    const records = await this.readChatSessions(userId);
+  private rebindClaudeSession = async (
+    storageKey: string,
+    chatSessionId?: string
+  ) => {
+    const records = await this.readChatSessions(storageKey);
     const now = Date.now();
     const existing = chatSessionId
       ? records.find((record) => record.id === chatSessionId)
@@ -973,25 +1195,26 @@ class ClaudeCodeAgentManager {
           updatedAt: now
         };
 
-    await this.upsertChatSession(userId, record);
+    await this.upsertChatSession(storageKey, record);
 
     return record;
   };
 
   private getCurrentChatSessionId = async (
-    userId: number,
+    storageKey: string,
     session?: TClaudeCodeSession
   ) =>
     session?.chatSessionId ??
     (await fs
-      .readFile(getClaudeSessionPath(userId), 'utf8')
+      .readFile(getClaudeSessionPath(storageKey), 'utf8')
       .then(
-        (value) => (JSON.parse(value) as { chatSessionId?: string }).chatSessionId
+        (value) =>
+          (JSON.parse(value) as { chatSessionId?: string }).chatSessionId
       )
       .catch(() => undefined));
 
   private snapshotChatSessionMessages = async (
-    userId: number,
+    storageKey: string,
     channelId: number,
     chatSessionId?: string
   ) => {
@@ -1014,16 +1237,19 @@ class ClaudeCodeAgentManager {
       messages: messageRows,
       messageFiles: fileRows
     };
-    const snapshotPath = getClaudeChatSessionMessagesPath(userId, chatSessionId);
+    const snapshotPath = getClaudeChatSessionMessagesPath(
+      storageKey,
+      chatSessionId
+    );
 
     await fs.mkdir(path.dirname(snapshotPath), { recursive: true });
     await fs.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
 
-    const records = await this.readChatSessions(userId);
+    const records = await this.readChatSessions(storageKey);
     const record = records.find((item) => item.id === chatSessionId);
 
     if (record) {
-      await this.upsertChatSession(userId, {
+      await this.upsertChatSession(storageKey, {
         ...record,
         updatedAt: Date.now()
       });
@@ -1047,12 +1273,15 @@ class ClaudeCodeAgentManager {
   };
 
   private restoreChatSessionMessages = async (
-    userId: number,
+    storageKey: string,
     channelId: number,
     chatSessionId: string
   ) => {
     const snapshot = await fs
-      .readFile(getClaudeChatSessionMessagesPath(userId, chatSessionId), 'utf8')
+      .readFile(
+        getClaudeChatSessionMessagesPath(storageKey, chatSessionId),
+        'utf8'
+      )
       .then((value) => JSON.parse(value) as TClaudeCodeMessageSnapshot)
       .catch(() => undefined);
 
@@ -1078,13 +1307,13 @@ class ClaudeCodeAgentManager {
   };
 
   private switchChatSessionMessages = async ({
-    userId,
+    storageKey,
     channelId,
     fromChatSessionId,
     toChatSessionId,
     restore
   }: {
-    userId: number;
+    storageKey: string;
     channelId: number;
     fromChatSessionId?: string;
     toChatSessionId: string;
@@ -1092,11 +1321,19 @@ class ClaudeCodeAgentManager {
   }) => {
     if (fromChatSessionId === toChatSessionId) return;
 
-    await this.snapshotChatSessionMessages(userId, channelId, fromChatSessionId);
+    await this.snapshotChatSessionMessages(
+      storageKey,
+      channelId,
+      fromChatSessionId
+    );
     await this.clearChannelMessages(channelId);
 
     if (restore) {
-      await this.restoreChatSessionMessages(userId, channelId, toChatSessionId);
+      await this.restoreChatSessionMessages(
+        storageKey,
+        channelId,
+        toChatSessionId
+      );
     }
   };
 
@@ -1121,13 +1358,15 @@ class ClaudeCodeAgentManager {
   };
 
   private getClaudeSession = async (session: TClaudeCodeSession) => {
+    const { storageKey } = session.scope;
+
     if (session.chatSessionId && session.claudeSessionId) {
       if (
         session.shouldResumeClaudeSession &&
         !(await isClaudeSessionAvailable(session.claudeSessionId))
       ) {
         const record = await this.rebindClaudeSession(
-          session.userId,
+          storageKey,
           session.chatSessionId
         );
 
@@ -1145,7 +1384,7 @@ class ClaudeCodeAgentManager {
       };
     }
 
-    const sessionPath = getClaudeSessionPath(session.userId);
+    const sessionPath = getClaudeSessionPath(storageKey);
 
     try {
       const record = JSON.parse(await fs.readFile(sessionPath, 'utf8')) as {
@@ -1154,25 +1393,29 @@ class ClaudeCodeAgentManager {
         sessionId?: string;
         createdAt?: number;
         updatedAt?: number;
+        lastInjectedMessageDbId?: number;
       };
 
+      session.lastInjectedMessageDbId = record.lastInjectedMessageDbId;
+
       if (record.chatSessionId && record.claudeSessionId) {
-        const records = await this.readChatSessions(session.userId);
-        let chatSession =
-          records.find((item) => item.id === record.chatSessionId) ?? {
-            id: record.chatSessionId,
-            claudeSessionId: record.claudeSessionId,
-            createdAt: record.createdAt ?? Date.now(),
-            updatedAt: record.updatedAt ?? Date.now()
-          };
+        const records = await this.readChatSessions(storageKey);
+        let chatSession = records.find(
+          (item) => item.id === record.chatSessionId
+        ) ?? {
+          id: record.chatSessionId,
+          claudeSessionId: record.claudeSessionId,
+          createdAt: record.createdAt ?? Date.now(),
+          updatedAt: record.updatedAt ?? Date.now()
+        };
 
         if (
           !chatSession.readyAt &&
-          !(await this.hasChatSessionSnapshot(session.userId, chatSession.id)) &&
+          !(await this.hasChatSessionSnapshot(storageKey, chatSession.id)) &&
           !(await isClaudeSessionAvailable(chatSession.claudeSessionId))
         ) {
           chatSession = await this.rebindClaudeSession(
-            session.userId,
+            storageKey,
             chatSession.id
           );
           await this.setCurrentChatSession(session, chatSession, false);
@@ -1187,10 +1430,12 @@ class ClaudeCodeAgentManager {
 
       if (record.sessionId) {
         const available = await isClaudeSessionAvailable(record.sessionId);
-        const chatSession = await this.createChatSessionRecord(session.userId);
+        const chatSession = await this.createChatSessionRecord(storageKey);
         const migratedRecord = {
           ...chatSession,
-          claudeSessionId: available ? record.sessionId : chatSession.claudeSessionId
+          claudeSessionId: available
+            ? record.sessionId
+            : chatSession.claudeSessionId
         };
 
         await this.setCurrentChatSession(session, migratedRecord, available);
@@ -1204,7 +1449,7 @@ class ClaudeCodeAgentManager {
       // Missing or invalid session records are recreated below.
     }
 
-    const chatSession = await this.createChatSessionRecord(session.userId);
+    const chatSession = await this.createChatSessionRecord(storageKey);
 
     await this.setCurrentChatSession(session, chatSession, false);
 
@@ -1213,7 +1458,7 @@ class ClaudeCodeAgentManager {
 
   private resetClaudeSession = async (session: TClaudeCodeSession) => {
     const record = await this.rebindClaudeSession(
-      session.userId,
+      session.scope.storageKey,
       session.chatSessionId
     );
 
@@ -1225,24 +1470,15 @@ class ClaudeCodeAgentManager {
   public listClaudeSessionsForUser = async (userId: number) => {
     await this.ensureAgentUser();
 
-    const currentSession = this.sessions.get(userId);
+    const scope = createDmScope(userId);
+    const currentSession = this.sessions.get(scope.key);
     const currentRecord = await fs
-      .readFile(getClaudeSessionPath(userId), 'utf8')
-      .then(
-        (value) =>
-          JSON.parse(value) as {
-            chatSessionId?: string;
-            claudeSessionId?: string;
-            sessionId?: string;
-            createdAt?: number;
-            updatedAt?: number;
-            readyAt?: number;
-          }
-      )
+      .readFile(getClaudeSessionPath(scope.storageKey), 'utf8')
+      .then((value) => JSON.parse(value) as TClaudeCodeSessionStateRecord)
       .catch(() => undefined);
     let currentChatSessionId =
       currentSession?.chatSessionId ?? currentRecord?.chatSessionId;
-    let chatSessions = await this.readChatSessions(userId);
+    let chatSessions = await this.readChatSessions(scope.storageKey);
 
     if (
       currentRecord?.chatSessionId &&
@@ -1257,9 +1493,9 @@ class ClaudeCodeAgentManager {
         readyAt: currentRecord.readyAt
       };
 
-      await this.upsertChatSession(userId, migratedRecord);
+      await this.upsertChatSession(scope.storageKey, migratedRecord);
       await fs.writeFile(
-        getClaudeSessionPath(userId),
+        getClaudeSessionPath(scope.storageKey),
         JSON.stringify(
           {
             chatSessionId: migratedRecord.id,
@@ -1282,7 +1518,7 @@ class ClaudeCodeAgentManager {
         updatedAt: currentRecord.updatedAt ?? Date.now()
       };
 
-      await this.upsertChatSession(userId, migratedRecord);
+      await this.upsertChatSession(scope.storageKey, migratedRecord);
       chatSessions = [...chatSessions, migratedRecord];
     }
 
@@ -1299,21 +1535,23 @@ class ClaudeCodeAgentManager {
           available:
             current ||
             Boolean(record.readyAt) ||
-            (await this.hasChatSessionSnapshot(userId, record.id)) ||
+            (await this.hasChatSessionSnapshot(scope.storageKey, record.id)) ||
             (await isClaudeSessionAvailable(record.claudeSessionId))
         };
       })
     );
 
-    return sessions
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 30);
+    return sessions.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 30);
   };
 
   public startNewClaudeSessionForUser = async (userId: number) => {
+    const scope = createDmScope(userId);
     const session = this.getSession(userId);
     const { channelId } = await this.openDirectMessage(userId);
-    const previousChatSessionId = await this.getCurrentChatSessionId(userId, session);
+    const previousChatSessionId = await this.getCurrentChatSessionId(
+      scope.storageKey,
+      session
+    );
     const previousState = {
       chatSessionId: session.chatSessionId,
       claudeSessionId: session.claudeSessionId,
@@ -1360,7 +1598,8 @@ class ClaudeCodeAgentManager {
 
       session.chatSessionId = previousState.chatSessionId;
       session.claudeSessionId = previousState.claudeSessionId;
-      session.shouldResumeClaudeSession = previousState.shouldResumeClaudeSession;
+      session.shouldResumeClaudeSession =
+        previousState.shouldResumeClaudeSession;
       session.output = previousState.output;
       session.channelId = previousState.channelId;
       session.messageId = previousState.messageId;
@@ -1385,7 +1624,7 @@ class ClaudeCodeAgentManager {
     };
 
     await this.switchChatSessionMessages({
-      userId,
+      storageKey: scope.storageKey,
       channelId,
       fromChatSessionId: previousChatSessionId,
       toChatSessionId: readyChatSession.id,
@@ -1418,7 +1657,8 @@ class ClaudeCodeAgentManager {
     userId: number,
     chatSessionId: string
   ) => {
-    const records = await this.readChatSessions(userId);
+    const scope = createDmScope(userId);
+    const records = await this.readChatSessions(scope.storageKey);
     let chatSession = records.find((record) => record.id === chatSessionId);
 
     if (!chatSession) {
@@ -1427,20 +1667,26 @@ class ClaudeCodeAgentManager {
 
     const session = this.getSession(userId);
     const { channelId } = await this.openDirectMessage(userId);
-    const previousChatSessionId = await this.getCurrentChatSessionId(userId, session);
+    const previousChatSessionId = await this.getCurrentChatSessionId(
+      scope.storageKey,
+      session
+    );
     let rebound = false;
 
     if (
       !chatSession.readyAt &&
-      !(await this.hasChatSessionSnapshot(userId, chatSession.id)) &&
+      !(await this.hasChatSessionSnapshot(scope.storageKey, chatSession.id)) &&
       !(await isClaudeSessionAvailable(chatSession.claudeSessionId))
     ) {
-      chatSession = await this.rebindClaudeSession(userId, chatSession.id);
+      chatSession = await this.rebindClaudeSession(
+        scope.storageKey,
+        chatSession.id
+      );
       rebound = true;
     }
 
     await this.switchChatSessionMessages({
-      userId,
+      storageKey: scope.storageKey,
       channelId,
       fromChatSessionId: previousChatSessionId,
       toChatSessionId: chatSession.id,
@@ -1489,14 +1735,18 @@ class ClaudeCodeAgentManager {
     userId: number,
     chatSessionId: string
   ) => {
-    const session = this.sessions.get(userId);
-    const currentChatSessionId = await this.getCurrentChatSessionId(userId, session);
+    const scope = createDmScope(userId);
+    const session = this.sessions.get(scope.key);
+    const currentChatSessionId = await this.getCurrentChatSessionId(
+      scope.storageKey,
+      session
+    );
 
     if (chatSessionId === currentChatSessionId) {
       throw new Error('无法删除正在使用的 ClaudeCode 会话，请先切换到其他会话');
     }
 
-    const records = await this.readChatSessions(userId);
+    const records = await this.readChatSessions(scope.storageKey);
     const target = records.find((record) => record.id === chatSessionId);
 
     if (!target) {
@@ -1504,12 +1754,15 @@ class ClaudeCodeAgentManager {
     }
 
     await this.writeChatSessions(
-      userId,
+      scope.storageKey,
       records.filter((record) => record.id !== chatSessionId)
     );
-    await fs.rm(getClaudeChatSessionMessagesPath(userId, chatSessionId), {
-      force: true
-    });
+    await fs.rm(
+      getClaudeChatSessionMessagesPath(scope.storageKey, chatSessionId),
+      {
+        force: true
+      }
+    );
     await deleteClaudeSessionFile(target.claudeSessionId);
 
     return { deleted: true };
@@ -1591,7 +1844,7 @@ class ClaudeCodeAgentManager {
       ) {
         session.readyMarkedChatSessionId = session.chatSessionId;
         void this.markChatSessionReady(
-          session.userId,
+          session.scope.storageKey,
           session.chatSessionId,
           session.claudeSessionId
         );
@@ -1680,8 +1933,8 @@ class ClaudeCodeAgentManager {
     this.publishStatus(session);
   };
 
-  private ensureSession = async (userId: number) => {
-    const session = this.getSession(userId);
+  private ensureSessionForScope = async (scope: TClaudeCodeSessionScope) => {
+    const session = this.getSessionForScope(scope);
 
     if (session.pty) return session;
 
@@ -1696,8 +1949,11 @@ class ClaudeCodeAgentManager {
     return session;
   };
 
+  private ensureSession = async (userId: number) =>
+    this.ensureSessionForScope(createDmScope(userId));
+
   public stopSessionForUser = async (userId: number) => {
-    const session = this.sessions.get(userId);
+    const session = this.sessions.get(createDmScope(userId).key);
 
     if (!session) {
       return { stopped: false };
@@ -1751,13 +2007,14 @@ class ClaudeCodeAgentManager {
   };
 
   public clearConversationForUser = async (userId: number) => {
+    const scope = createDmScope(userId);
     const { channelId } = await this.getDirectMessageForUser(userId);
 
     if (!channelId) {
       return { cleared: false, deletedMessages: 0 };
     }
 
-    const session = this.sessions.get(userId);
+    const session = this.sessions.get(scope.key);
 
     if (session) {
       await this.cancelPendingAskUserQuestions(
@@ -1784,7 +2041,7 @@ class ClaudeCodeAgentManager {
       await publishMessage(row.id, channelId, 'delete');
     }
 
-    const sessionPath = getClaudeSessionPath(userId);
+    const sessionPath = getClaudeSessionPath(scope.storageKey);
 
     await fs.rm(sessionPath, { force: true });
 
@@ -1809,9 +2066,12 @@ class ClaudeCodeAgentManager {
 
   private isClaudeCodeDm = async (channelId: number, userId: number) => {
     const agentUserId = await this.ensureAgentUser();
-    const participantIds = await getDirectMessageChannelParticipantIds(channelId);
+    const participantIds =
+      await getDirectMessageChannelParticipantIds(channelId);
 
-    return participantIds.includes(userId) && participantIds.includes(agentUserId);
+    return (
+      participantIds.includes(userId) && participantIds.includes(agentUserId)
+    );
   };
 
   private createProcessingMessage = async (
@@ -1844,20 +2104,152 @@ class ClaudeCodeAgentManager {
     return message.id;
   };
 
-  private buildPrompt = async (message: TJoinedMessage) => {
-    const text = normalizeClaudePromptLine(
-      getPlainTextFromHtml(message.content ?? '').trim()
+  private hasClaudeCodeGroupTrigger = (
+    message: TJoinedMessage,
+    agentUserId: number
+  ) => {
+    if (hasMention(message.content, agentUserId)) {
+      return true;
+    }
+
+    const text = getPlainTextFromHtml(message.content ?? '');
+
+    return /(^|[\s([{<])@(?:claude|claudecode)\b/i.test(text);
+  };
+
+  private isInjectableChatMessage = (
+    message: TJoinedMessage,
+    agentUserId: number
+  ) =>
+    Boolean(
+      message.userId && !message.pluginId && message.userId !== agentUserId
     );
-    const filePaths = message.files.map((file) => path.join(PUBLIC_PATH, file.name));
+
+  private getGroupLastInjectedMessageDbId = async (
+    session: TClaudeCodeSession
+  ) => {
+    if (typeof session.lastInjectedMessageDbId === 'number') {
+      return session.lastInjectedMessageDbId;
+    }
+
+    const record = await this.readSessionState(session);
+
+    session.lastInjectedMessageDbId = record.lastInjectedMessageDbId;
+
+    return session.lastInjectedMessageDbId;
+  };
+
+  private setGroupLastInjectedMessageDbId = async (
+    session: TClaudeCodeSession,
+    messageDbId: number
+  ) => {
+    session.lastInjectedMessageDbId = messageDbId;
+    await this.writeSessionStatePatch(session, {
+      lastInjectedMessageDbId: messageDbId,
+      updatedAt: Date.now()
+    });
+  };
+
+  private getGroupMessagesForInjection = async (
+    channelId: number,
+    throughMessageId: number,
+    agentUserId: number,
+    lastInjectedMessageDbId?: number
+  ) => {
+    const conditions = [
+      eq(messages.channelId, channelId),
+      lte(messages.id, throughMessageId)
+    ];
+
+    if (lastInjectedMessageDbId) {
+      conditions.push(gt(messages.id, lastInjectedMessageDbId));
+    }
+
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(asc(messages.id));
+    const joined = await joinMessagesWithRelations(rows);
+
+    return joined.filter((message) =>
+      this.isInjectableChatMessage(message, agentUserId)
+    );
+  };
+
+  private buildPrompt = async (
+    session: TClaudeCodeSession,
+    batch: TJoinedMessage[]
+  ) => {
+    const userIds = [
+      ...new Set(
+        batch
+          .map((message) => message.userId)
+          .filter((userId): userId is number => typeof userId === 'number')
+      )
+    ];
+    const parentMessageIds = [
+      ...new Set(
+        batch
+          .map((message) => message.parentMessageId)
+          .filter(
+            (messageId): messageId is number => typeof messageId === 'number'
+          )
+      )
+    ];
+    const [userRows, parentRows] = await Promise.all([
+      userIds.length > 0
+        ? db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(inArray(users.id, userIds))
+        : [],
+      parentMessageIds.length > 0
+        ? db
+            .select({ id: messages.id, messageId: messages.messageId })
+            .from(messages)
+            .where(inArray(messages.id, parentMessageIds))
+        : []
+    ]);
+    const usersById = new Map(userRows.map((user) => [user.id, user.name]));
+    const parentMessageIdsByDbId = new Map(
+      parentRows.map((message) => [message.id, message.messageId])
+    );
+    const payload = {
+      scope:
+        session.scope.kind === 'dm'
+          ? { type: 'dm', user_id: session.scope.userId }
+          : { type: 'channel', channel_id: session.scope.channelId },
+      messages: batch.map((message) => ({
+        user: usersById.get(message.userId ?? -1) ?? 'Unknown User',
+        user_id: message.userId,
+        message_id: message.messageId,
+        time: formatClaudeMessageTime(message.createdAt),
+        text: getPlainTextFromHtml(message.content ?? '').trim(),
+        files: message.files.map((file) => path.join(PUBLIC_PATH, file.name)),
+        ...(message.replyTo?.messageId
+          ? { reply_to: message.replyTo.messageId }
+          : {}),
+        ...(message.parentMessageId
+          ? {
+              parent_message_id:
+                parentMessageIdsByDbId.get(message.parentMessageId) ??
+                String(message.parentMessageId)
+            }
+          : {})
+      }))
+    };
+    const instruction =
+      session.scope.kind === 'dm'
+        ? '请根据以下私聊消息继续处理。最后一条消息是本次用户输入；只输出需要发到聊天里的最终回复。'
+        : '请根据以下群聊消息继续处理。最后一条消息包含本次 @claude 触发请求；必须根据 user_id 区分不同用户的要求，只输出需要发到群聊里的最终回复。';
 
     return [
-      text,
-      filePaths.length > 0 ? `files: ${filePaths.join(', ')}` : undefined,
-      message.replyTo?.messageId ? `reply_to: ${message.replyTo.messageId}` : undefined,
-      `id: ${message.messageId}`
-    ]
-      .filter(Boolean)
-      .join(' | ');
+      instruction,
+      '```json',
+      JSON.stringify(payload, null, 2),
+      '```'
+    ].join('\n');
   };
 
   private writePrompt = async (session: TClaudeCodeSession, prompt: string) => {
@@ -1878,27 +2270,24 @@ class ClaudeCodeAgentManager {
     session.pty.write(SUBMIT_CURRENT_TTY_INPUT);
   };
 
-  public handleCreatedMessage = async (messageId: number) => {
-    const message = await getMessage(messageId);
-
-    if (!message?.userId) return;
-
-    const agentUserId = await this.ensureAgentUser();
-
-    if (message.userId === agentUserId) return;
-    if (!(await this.isClaudeCodeDm(message.channelId, message.userId))) return;
+  private startDmRun = async (message: TJoinedMessage) => {
+    if (!message.userId) return;
 
     const session = await this.ensureSession(message.userId);
     if (session.status.state === 'waiting_for_user') return;
 
-    const hasRunningMessage = session.status.state === 'running' && session.messageId;
+    const hasRunningMessage =
+      session.status.state === 'running' && session.messageId;
     const runId = hasRunningMessage ? session.runId! : randomUUIDv7();
 
     session.runId = runId;
     session.channelId = message.channelId;
 
     if (!hasRunningMessage) {
-      session.messageId = await this.createProcessingMessage(message.channelId, runId);
+      session.messageId = await this.createProcessingMessage(
+        message.channelId,
+        runId
+      );
     }
 
     session.status = {
@@ -1912,7 +2301,124 @@ class ClaudeCodeAgentManager {
     };
     this.publishStatus(session);
 
-    await this.writePrompt(session, await this.buildPrompt(message));
+    await this.writePrompt(session, await this.buildPrompt(session, [message]));
+  };
+
+  private queueGroupTrigger = (
+    session: TClaudeCodeSession,
+    triggerMessageId: number
+  ) => {
+    session.pendingGroupTriggerMessageId = Math.max(
+      session.pendingGroupTriggerMessageId ?? 0,
+      triggerMessageId
+    );
+  };
+
+  private startGroupRun = async (
+    session: TClaudeCodeSession,
+    triggerMessageId: number
+  ) => {
+    if (session.scope.kind !== 'channel') return;
+
+    const agentUserId = await this.ensureAgentUser();
+    const lastInjectedMessageDbId =
+      await this.getGroupLastInjectedMessageDbId(session);
+    const batch = await this.getGroupMessagesForInjection(
+      session.scope.channelId,
+      triggerMessageId,
+      agentUserId,
+      lastInjectedMessageDbId
+    );
+
+    if (batch.length === 0) return;
+
+    const ensuredSession = await this.ensureSessionForScope(session.scope);
+    const runId = randomUUIDv7();
+
+    ensuredSession.runId = runId;
+    ensuredSession.channelId = session.scope.channelId;
+    ensuredSession.messageId = await this.createProcessingMessage(
+      session.scope.channelId,
+      runId
+    );
+    ensuredSession.status = {
+      ...ensuredSession.status,
+      state: 'running',
+      runId,
+      channelId: session.scope.channelId,
+      messageId: ensuredSession.messageId,
+      lastError: undefined,
+      updatedAt: Date.now()
+    };
+    this.publishStatus(ensuredSession);
+
+    await this.writePrompt(
+      ensuredSession,
+      await this.buildPrompt(ensuredSession, batch)
+    );
+    await this.setGroupLastInjectedMessageDbId(
+      ensuredSession,
+      triggerMessageId
+    );
+  };
+
+  private scheduleQueuedGroupTrigger = (session: TClaudeCodeSession) => {
+    if (session.scope.kind !== 'channel') return false;
+
+    const triggerMessageId = session.pendingGroupTriggerMessageId;
+
+    if (!triggerMessageId) return false;
+
+    session.pendingGroupTriggerMessageId = undefined;
+
+    setTimeout(() => {
+      void this.startGroupRun(session, triggerMessageId).catch((error) => {
+        logger.error(
+          'ClaudeCode queued group trigger failed: %s',
+          getErrorMessage(error)
+        );
+      });
+    }, 250);
+
+    return true;
+  };
+
+  private handleGroupCreatedMessage = async (message: TJoinedMessage) => {
+    const agentUserId = await this.ensureAgentUser();
+
+    if (!this.hasClaudeCodeGroupTrigger(message, agentUserId)) return;
+
+    const scope = createChannelScope(message.channelId);
+    const session = this.getSessionForScope(scope);
+    const isBusy =
+      session.status.state === 'running' ||
+      session.status.state === 'waiting_for_user';
+
+    if (isBusy) {
+      this.queueGroupTrigger(session, message.id);
+      return;
+    }
+
+    await this.startGroupRun(session, message.id);
+  };
+
+  public handleCreatedMessage = async (messageId: number) => {
+    const message = await getMessage(messageId);
+
+    if (!message?.userId || message.pluginId) return;
+
+    const agentUserId = await this.ensureAgentUser();
+
+    if (message.userId === agentUserId) return;
+
+    if (await this.isClaudeCodeDm(message.channelId, message.userId)) {
+      await this.startDmRun(message);
+      return;
+    }
+
+    if (await isDirectMessageChannel(message.channelId)) return;
+
+    await this.handleGroupCreatedMessage(message);
   };
 
   private completeAskUserQuestionRequest = async (
@@ -1949,7 +2455,9 @@ class ClaudeCodeAgentManager {
     this.publishStatus(session);
 
     if (status === 'answered' && answers) {
-      pending.resolve(buildAskUserQuestionAllowResponse(pending.questions, answers));
+      pending.resolve(
+        buildAskUserQuestionAllowResponse(pending.questions, answers)
+      );
     } else {
       pending.resolve(buildAskUserQuestionDenyResponse(reason));
     }
@@ -2006,16 +2514,18 @@ class ClaudeCodeAgentManager {
     const requestId = randomUUIDv7();
     const pendingBase = {
       requestId,
-      userId: session.userId,
+      scope: session.scope,
       runId,
       channelId: session.channelId,
       messageId: session.messageId,
       questions
     };
     let resolveRequest!: (response: TAskUserQuestionHookResponse) => void;
-    const responsePromise = new Promise<TAskUserQuestionHookResponse>((resolve) => {
-      resolveRequest = resolve;
-    });
+    const responsePromise = new Promise<TAskUserQuestionHookResponse>(
+      (resolve) => {
+        resolveRequest = resolve;
+      }
+    );
     const timeout = setTimeout(() => {
       void this.completeAskUserQuestionRequest(
         session,
@@ -2058,22 +2568,55 @@ class ClaudeCodeAgentManager {
     return responsePromise;
   };
 
+  private findAskUserQuestionRequest = (requestId: string) => {
+    for (const session of this.sessions.values()) {
+      const pending = session.askUserQuestionRequests.get(requestId);
+
+      if (pending) {
+        return { session, pending };
+      }
+    }
+
+    return undefined;
+  };
+
+  private assertCanResolveAskUserQuestion = async (
+    userId: number,
+    pending: TPendingAskUserQuestionRequest
+  ) => {
+    if (pending.scope.kind === 'dm') {
+      if (pending.scope.userId !== userId) {
+        throw new Error('ClaudeCode 问题已失效或已被回答');
+      }
+
+      return;
+    }
+
+    const canSend = await channelUserCan(
+      pending.channelId,
+      userId,
+      ChannelPermission.SEND_MESSAGES
+    );
+
+    if (!canSend) {
+      throw new Error('你没有权限回答这个频道里的 ClaudeCode 问题');
+    }
+  };
+
   public answerAskUserQuestionForUser = async (
     userId: number,
     requestId: string,
     answers: TClaudeCodeAskUserQuestionAnswers
   ) => {
-    const session = this.sessions.get(userId);
+    const found = this.findAskUserQuestionRequest(requestId);
 
-    if (!session) {
-      throw new Error('ClaudeCode 会话不存在');
-    }
-
-    const pending = session.askUserQuestionRequests.get(requestId);
-
-    if (!pending) {
+    if (!found) {
       throw new Error('ClaudeCode 问题已失效或已被回答');
     }
+
+    const { pending, session } = found;
+
+    await this.assertCanResolveAskUserQuestion(userId, pending);
 
     const missingQuestion = pending.questions.find(
       (question) => !(question.question in answers)
@@ -2102,11 +2645,15 @@ class ClaudeCodeAgentManager {
     userId: number,
     requestId: string
   ) => {
-    const session = this.sessions.get(userId);
+    const found = this.findAskUserQuestionRequest(requestId);
 
-    if (!session) {
-      throw new Error('ClaudeCode 会话不存在');
+    if (!found) {
+      throw new Error('ClaudeCode 问题已失效或已被回答');
     }
+
+    const { pending, session } = found;
+
+    await this.assertCanResolveAskUserQuestion(userId, pending);
 
     const cancelled = await this.completeAskUserQuestionRequest(
       session,
@@ -2123,7 +2670,10 @@ class ClaudeCodeAgentManager {
     return { cancelled: true };
   };
 
-  public getMessageDetailsForHook = async (token: string, messageId: string) => {
+  public getMessageDetailsForHook = async (
+    token: string,
+    messageId: string
+  ) => {
     const session = this.getSessionByHookToken(token);
 
     if (!session) return undefined;
@@ -2145,12 +2695,23 @@ class ClaudeCodeAgentManager {
       return undefined;
     }
 
-    if (message.userId !== session.userId && message.userId !== agentUserId) {
-      return undefined;
-    }
+    if (session.scope.kind === 'dm') {
+      if (
+        message.userId !== session.scope.userId &&
+        message.userId !== agentUserId
+      ) {
+        return undefined;
+      }
 
-    if (!(await this.isClaudeCodeDm(message.channelId, session.userId))) {
-      return undefined;
+      if (
+        !(await this.isClaudeCodeDm(message.channelId, session.scope.userId))
+      ) {
+        return undefined;
+      }
+    } else {
+      if (message.channelId !== session.scope.channelId) {
+        return undefined;
+      }
     }
 
     return {
@@ -2167,7 +2728,9 @@ class ClaudeCodeAgentManager {
             id: message.replyTo.messageId,
             userId: message.replyTo.userId,
             sender:
-              message.replyTo.userId === agentUserId ? CLAUDE_CODE_AGENT_NAME : 'user',
+              message.replyTo.userId === agentUserId
+                ? CLAUDE_CODE_AGENT_NAME
+                : 'user',
             text: getPlainTextFromHtml(message.replyTo.content ?? '').trim()
           }
         : null,
@@ -2199,7 +2762,10 @@ class ClaudeCodeAgentManager {
       fs.realpath(DATA_PATH)
     ]);
 
-    if (!isPathInside(realWorkspace, realCandidate) && !isPathInside(realData, realCandidate)) {
+    if (
+      !isPathInside(realWorkspace, realCandidate) &&
+      !isPathInside(realData, realCandidate)
+    ) {
       return undefined;
     }
 
@@ -2312,10 +2878,15 @@ class ClaudeCodeAgentManager {
     }
 
     const syncedMessage = await getMessage(messageId);
-    const syncedBusinessMessageId = syncedMessage?.messageId ?? createMessageBusinessId();
+    const syncedBusinessMessageId =
+      syncedMessage?.messageId ?? createMessageBusinessId();
 
     await this.attachFiles(messageId, savedFiles);
-    await publishMessage(messageId, channelId, session.messageId ? 'update' : 'create');
+    await publishMessage(
+      messageId,
+      channelId,
+      session.messageId ? 'update' : 'create'
+    );
 
     session.messageId = undefined;
     session.runId = undefined;
@@ -2327,7 +2898,9 @@ class ClaudeCodeAgentManager {
     };
     this.publishStatus(session);
 
-    if (session.clients.size === 0 && session.pty) {
+    const hasQueuedGroupTrigger = this.scheduleQueuedGroupTrigger(session);
+
+    if (session.clients.size === 0 && session.pty && !hasQueuedGroupTrigger) {
       session.stopping = true;
       session.pty.kill();
       session.pty = undefined;
@@ -2373,10 +2946,14 @@ class ClaudeCodeAgentManager {
     return true;
   };
 
-  public handlePtyConnection = async (ws: WebSocket, req: http.IncomingMessage) => {
+  public handlePtyConnection = async (
+    ws: WebSocket,
+    req: http.IncomingMessage
+  ) => {
     try {
       const url = new URL(req.url ?? '', 'http://localhost');
       const token = url.searchParams.get('token') ?? undefined;
+      const channelIdRaw = url.searchParams.get('channelId');
       const user = await getUserByToken(token);
 
       if (!user) {
@@ -2386,7 +2963,39 @@ class ClaudeCodeAgentManager {
 
       await this.ensureAgentUser();
 
-      const session = await this.ensureSession(user.id);
+      let session: TClaudeCodeSession;
+
+      if (channelIdRaw) {
+        const channelId = Number(channelIdRaw);
+
+        if (!Number.isInteger(channelId) || channelId <= 0) {
+          ws.close(1008, 'Invalid channel');
+          return;
+        }
+
+        if (await isDirectMessageChannel(channelId)) {
+          ws.close(1008, 'Unsupported channel');
+          return;
+        }
+
+        const canSend = await channelUserCan(
+          channelId,
+          user.id,
+          ChannelPermission.SEND_MESSAGES
+        );
+
+        if (!canSend) {
+          ws.close(1008, 'Forbidden');
+          return;
+        }
+
+        session = await this.ensureSessionForScope(
+          createChannelScope(channelId)
+        );
+        session.channelId = channelId;
+      } else {
+        session = await this.ensureSession(user.id);
+      }
 
       session.clients.add(ws);
       sendJson(ws, { type: 'status', status: getStatus(session) });
@@ -2402,7 +3011,10 @@ class ClaudeCodeAgentManager {
           const data = JSON.parse(raw.toString()) as
             | { type: 'input'; data: string }
             | { type: 'resize'; cols: number; rows: number };
-          const targetSession = await this.ensureSession(user.id);
+          const targetSession =
+            session.scope.kind === 'channel'
+              ? await this.ensureSessionForScope(session.scope)
+              : await this.ensureSession(user.id);
 
           if (data.type === 'input') {
             targetSession.pty?.write(data.data);
@@ -2410,7 +3022,10 @@ class ClaudeCodeAgentManager {
             targetSession.pty?.resize(data.cols, data.rows);
           }
         } catch (error) {
-          logger.error('ClaudeCode PTY message error: %s', getErrorMessage(error));
+          logger.error(
+            'ClaudeCode PTY message error: %s',
+            getErrorMessage(error)
+          );
         }
       });
 
@@ -2419,7 +3034,10 @@ class ClaudeCodeAgentManager {
         this.publishStatus(session);
       });
     } catch (error) {
-      logger.error('ClaudeCode PTY connection error: %s', getErrorMessage(error));
+      logger.error(
+        'ClaudeCode PTY connection error: %s',
+        getErrorMessage(error)
+      );
       sendJson(ws, {
         type: 'status',
         status: {

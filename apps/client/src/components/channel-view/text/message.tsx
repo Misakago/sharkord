@@ -36,6 +36,7 @@ type TMessageProps = {
   isInlineReplyTarget?: boolean;
   isActiveThread?: boolean;
   showClaudeCodePanelHost?: boolean;
+  allowClaudeCodePanelOpen?: boolean;
 };
 
 const Message = memo(
@@ -49,7 +50,8 @@ const Message = memo(
     onEditMessageSelect,
     isInlineReplyTarget,
     isActiveThread,
-    showClaudeCodePanelHost
+    showClaudeCodePanelHost,
+    allowClaudeCodePanelOpen
   }: TMessageProps) => {
     const { t } = useTranslation('common');
     const [actionsVisible, setActionsVisible] = useState(false);
@@ -213,6 +215,7 @@ const Message = memo(
             message.editable && canManage ? replaceMessageFile : undefined
           }
           showClaudeCodePanelHost={showClaudeCodePanelHost}
+          allowClaudeCodePanelOpen={allowClaudeCodePanelOpen}
         />
         {!isThreadReply && replyCount > 0 && (
           <button

@@ -1,4 +1,4 @@
-import { openDialog, requestConfirmation } from '@/features/dialogs/actions';
+import { requestConfirmation } from '@/features/dialogs/actions';
 import { openServerScreen } from '@/features/server-screens/actions';
 import { disconnectFromServer } from '@/features/server/actions';
 import { Permission } from '@mikotord/shared';
@@ -14,7 +14,6 @@ import {
 import { Menu } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog } from '../dialogs/dialogs';
 import { Protect } from '../protect';
 import { ServerScreen } from '../server-screens/screens';
 
@@ -54,11 +53,6 @@ const ServerDropdownMenu = memo(() => {
       <DropdownMenuContent>
         <DropdownMenuLabel>{t('server')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <Protect permission={Permission.MANAGE_CATEGORIES}>
-          <DropdownMenuItem onClick={() => openDialog(Dialog.CREATE_CATEGORY)}>
-            {t('addCategory')}
-          </DropdownMenuItem>
-        </Protect>
         <Protect permission={serverSettingsPermissions}>
           <DropdownMenuItem
             onClick={() => openServerScreen(ServerScreen.SERVER_SETTINGS)}

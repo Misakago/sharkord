@@ -5,7 +5,12 @@ import { messages } from '../../db/schema';
 import { claudeCodeAgentManager } from '../claude-code';
 
 type TTestSession = {
-  userId: number;
+  scope: {
+    kind: 'dm';
+    key: string;
+    storageKey: string;
+    userId: number;
+  };
   clients: Set<unknown>;
   askUserQuestionRequests: Map<string, unknown>;
   hookToken: string;
@@ -24,7 +29,7 @@ type TTestSession = {
 const getManagerSessions = () =>
   (
     claudeCodeAgentManager as unknown as {
-      sessions: Map<number, TTestSession>;
+      sessions: Map<string, TTestSession>;
     }
   ).sessions;
 
@@ -71,7 +76,12 @@ const createTestSession = async () => {
     .returning()
     .get();
   const session: TTestSession = {
-    userId,
+    scope: {
+      kind: 'dm',
+      key: `dm:${userId}`,
+      storageKey: String(userId),
+      userId
+    },
     clients: new Set(),
     askUserQuestionRequests: new Map(),
     hookToken,
@@ -87,7 +97,7 @@ const createTestSession = async () => {
     }
   };
 
-  getManagerSessions().set(userId, session);
+  getManagerSessions().set(session.scope.key, session);
 
   return { session, userId, runId, hookToken, messageId: message.id };
 };

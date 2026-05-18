@@ -168,13 +168,18 @@ const Channel = memo(({ channelId, isSelected, onClick }: TChannelProps) => {
 
 type TChannelsProps = {
   categoryId: number;
+  query?: string;
 };
 
-const Channels = memo(({ categoryId }: TChannelsProps) => {
+const Channels = memo(({ categoryId, query = '' }: TChannelsProps) => {
   const { t } = useTranslation('sidebar');
-  const channels = useChannelsByCategoryId(categoryId).filter(
-    (channel) => channel.type === 'TEXT'
-  );
+  const normalizedQuery = query.trim().toLowerCase();
+  const channels = useChannelsByCategoryId(categoryId).filter((channel) => {
+    if (channel.type !== 'TEXT') return false;
+    if (!normalizedQuery) return true;
+
+    return channel.name.toLowerCase().includes(normalizedQuery);
+  });
   const selectedChannelId = useSelectedChannelId();
   const can = useCan();
   const channelIds = useMemo(
@@ -236,7 +241,7 @@ const Channels = memo(({ categoryId }: TChannelsProps) => {
         <SortableContext
           items={channelIds}
           strategy={verticalListSortingStrategy}
-          disabled={!can(Permission.MANAGE_CHANNELS)}
+          disabled={!can(Permission.MANAGE_CHANNELS) || !!normalizedQuery}
         >
           {channels.map((channel) => (
             <Channel
